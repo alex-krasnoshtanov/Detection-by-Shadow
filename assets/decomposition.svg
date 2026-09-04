@@ -73,11 +73,16 @@
     bbox_width
   </text>
 
-  <!-- bbox_height -->
-  <line x1="186" y1="221" x2="186" y2="333" stroke="#4a5568" stroke-width="1.5"
+  <!-- bbox_height: measured on the frame side of the box, clear of the
+       y_center leader that runs in from the left -->
+  <line x1="295" y1="221" x2="295" y2="333" stroke="#4a5568" stroke-width="1.5"
         marker-start="url(#arrow)" marker-end="url(#arrow)"/>
-  <text x="176" y="277" font-size="12.5" font-weight="600" fill="#2d3748"
-        text-anchor="middle" transform="rotate(-90 176 277)">
+  <line x1="275" y1="221" x2="295" y2="221" stroke="#8a93a0" stroke-width="1"
+        stroke-dasharray="3 3"/>
+  <line x1="275" y1="333" x2="295" y2="333" stroke="#8a93a0" stroke-width="1"
+        stroke-dasharray="3 3"/>
+  <text x="308" y="277" font-size="12.5" font-weight="600" fill="#2d3748"
+        text-anchor="middle" transform="rotate(-90 308 277)">
     bbox_height
   </text>
 
@@ -85,7 +90,7 @@
   <line x1="112" y1="277" x2="206" y2="277" stroke="#4a5568" stroke-width="1.2"
         stroke-dasharray="4 3" marker-end="url(#arrow)"/>
   <circle cx="240.5" cy="277" r="3.5" fill="#2f855a"/>
-  <text x="108" y="272" font-size="12.5" font-weight="600" fill="#2d3748" text-anchor="end">
+  <text x="108" y="293" font-size="12.5" font-weight="600" fill="#2d3748" text-anchor="end">
     y_center
   </text>
 
