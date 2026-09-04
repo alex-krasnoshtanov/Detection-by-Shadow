@@ -1,0 +1,34 @@
+# --- Challenge data (redistribution not ours to grant) -----------------------
+data/
+*.zip
+
+# --- Model weights and run outputs ------------------------------------------
+# Checkpoints are large and reproducible; see docs/experiments.md for the
+# exact commands that regenerate them.
+*.pt
+*.pth
+runs/
+outputs/
+
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# --- Tooling ----------------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+
+# --- OS / editor ------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

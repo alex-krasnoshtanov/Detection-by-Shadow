@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 430" width="900" height="430"
+     font-family="ui-sans-serif, -apple-system, Segoe UI, Helvetica, Arial, sans-serif"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Decomposing an off-frame bounding box</title>
+  <desc id="desc">The camera frame contains only a shadow. The person's bounding box lies
+  entirely outside the left edge. Instead of regressing the box corners directly, the target is
+  split into a side classification plus four regressed quantities: distance from the edge, box
+  width, box height, and vertical centre.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 9 5 L 0 9 z" fill="#4a5568"/>
+    </marker>
+    <linearGradient id="shadow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3f4a5a" stop-opacity="0.78"/>
+      <stop offset="100%" stop-color="#3f4a5a" stop-opacity="0.24"/>
+    </linearGradient>
+    <linearGradient id="road" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c9cfd6"/>
+      <stop offset="100%" stop-color="#9aa3ad"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="900" height="430" fill="#f7f8fa"/>
+
+  <!-- ── headings ─────────────────────────────────────────────────────────── -->
+  <text x="34" y="36" font-size="15" font-weight="600" fill="#1a202c">
+    The person is never in the frame. Only their shadow is.
+  </text>
+  <text x="34" y="58" font-size="13" fill="#5a6472">
+    So the box is not regressed in image coordinates — it is anchored to the edge it hides behind.
+  </text>
+
+  <!-- ── the camera frame ─────────────────────────────────────────────────── -->
+  <rect x="340" y="92" width="420" height="280" fill="url(#road)"/>
+  <!-- shadow reaching in from the left edge -->
+  <path d="M 340 292 L 472 322 L 458 350 L 340 340 Z" fill="url(#shadow)"/>
+  <path d="M 340 340 L 458 350 L 452 358 L 340 350 Z" fill="#3f4a5a" opacity="0.28"/>
+  <rect x="340" y="92" width="420" height="280" fill="none" stroke="#4a5568" stroke-width="2"/>
+  <text x="550" y="118" font-size="12" fill="#3d4653" text-anchor="middle">
+    camera frame — 720 × 480
+  </text>
+  <text x="484" y="382" font-size="11.5" fill="#5a6472" text-anchor="middle">
+    the only evidence: a shadow cast into frame
+  </text>
+
+  <!-- ── the frame edge, x = 0 ────────────────────────────────────────────── -->
+  <line x1="340" y1="74" x2="340" y2="396" stroke="#c0392b" stroke-width="1.5"
+        stroke-dasharray="5 4"/>
+  <text x="346" y="410" font-size="12" font-weight="600" fill="#c0392b">x = 0</text>
+
+  <!-- ── the ground-truth box, entirely off-frame ─────────────────────────── -->
+  <rect x="206" y="221" width="69" height="112" fill="#2f855a" fill-opacity="0.13"
+        stroke="#2f855a" stroke-width="2" stroke-dasharray="6 3"/>
+  <text x="240" y="212" font-size="12" font-weight="600" fill="#2f855a" text-anchor="middle">
+    ground truth
+  </text>
+
+  <!-- distance_from_edge: outer corner of the box to the frame edge -->
+  <line x1="206" y1="176" x2="340" y2="176" stroke="#4a5568" stroke-width="1.5"
+        marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <line x1="206" y1="176" x2="206" y2="221" stroke="#8a93a0" stroke-width="1"
+        stroke-dasharray="3 3"/>
+  <text x="273" y="168" font-size="12.5" font-weight="600" fill="#2d3748" text-anchor="middle">
+    distance_from_edge
+  </text>
+
+  <!-- bbox_width -->
+  <line x1="206" y1="352" x2="275" y2="352" stroke="#4a5568" stroke-width="1.5"
+        marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="240" y="370" font-size="12.5" font-weight="600" fill="#2d3748" text-anchor="middle">
+    bbox_width
+  </text>
+
+  <!-- bbox_height -->
+  <line x1="186" y1="221" x2="186" y2="333" stroke="#4a5568" stroke-width="1.5"
+        marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+  <text x="176" y="277" font-size="12.5" font-weight="600" fill="#2d3748"
+        text-anchor="middle" transform="rotate(-90 176 277)">
+    bbox_height
+  </text>
+
+  <!-- y_center -->
+  <line x1="112" y1="277" x2="206" y2="277" stroke="#4a5568" stroke-width="1.2"
+        stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+  <circle cx="240.5" cy="277" r="3.5" fill="#2f855a"/>
+  <text x="108" y="272" font-size="12.5" font-weight="600" fill="#2d3748" text-anchor="end">
+    y_center
+  </text>
+
+  <!-- side -->
+  <rect x="34" y="300" width="118" height="52" rx="7" fill="#fff" stroke="#cbd2da"/>
+  <text x="93" y="320" font-size="12" fill="#5a6472" text-anchor="middle">side =</text>
+  <text x="93" y="340" font-size="14" font-weight="700" fill="#c0392b" text-anchor="middle">
+    left
+  </text>
+
+  <!-- ── what the model emits ─────────────────────────────────────────────── -->
+  <line x1="34" y1="92" x2="34" y2="266" stroke="#cbd2da" stroke-width="1"/>
+  <text x="34" y="86" font-size="11.5" font-weight="600" fill="#5a6472"
+        letter-spacing="0.06em">THE MODEL PREDICTS</text>
+  <text x="46" y="112" font-size="12.5" fill="#2d3748">1 classification</text>
+  <text x="46" y="132" font-size="12" fill="#5a6472">side — left or right</text>
+  <text x="46" y="160" font-size="12.5" fill="#2d3748">4 regressions</text>
+  <text x="46" y="180" font-size="12" fill="#5a6472">distance_from_edge</text>
+  <text x="46" y="198" font-size="12" fill="#5a6472">bbox_width</text>
+  <text x="46" y="216" font-size="12" fill="#5a6472">bbox_height</text>
+  <text x="46" y="234" font-size="12" fill="#5a6472">y_center</text>
+  <text x="46" y="258" font-size="12" fill="#5a6472" font-style="italic">
+    + direction, when confident
+  </text>
+
+  <!-- ── why it matters ───────────────────────────────────────────────────── -->
+  <rect x="786" y="150" width="82" height="164" rx="7" fill="#fff" stroke="#cbd2da"/>
+  <text x="827" y="172" font-size="11" font-weight="600" fill="#5a6472" text-anchor="middle">
+    ALL FOUR
+  </text>
+  <text x="827" y="188" font-size="11" font-weight="600" fill="#5a6472" text-anchor="middle">
+    ARE FLIP-
+  </text>
+  <text x="827" y="204" font-size="11" font-weight="600" fill="#5a6472" text-anchor="middle">
+    INVARIANT
+  </text>
+  <line x1="800" y1="218" x2="854" y2="218" stroke="#e2e6eb"/>
+  <text x="827" y="240" font-size="10.5" fill="#5a6472" text-anchor="middle">so mirror</text>
+  <text x="827" y="255" font-size="10.5" fill="#5a6472" text-anchor="middle">TTA needs</text>
+  <text x="827" y="270" font-size="10.5" fill="#5a6472" text-anchor="middle">no coord-</text>
+  <text x="827" y="285" font-size="10.5" fill="#5a6472" text-anchor="middle">inate fix-</text>
+  <text x="827" y="300" font-size="10.5" fill="#5a6472" text-anchor="middle">up at all</text>
+</svg>
