@@ -54,6 +54,22 @@ SHADOW_MODEL_DIR=local uvicorn shadow_detection.demo.app:app --port 8000
 `export` copies `target_stats.json` next to the traced model, because a trace
 on its own cannot turn its regression outputs back into pixels.
 
+## Publishing weights
+
+[`scripts/package_release.py`](../scripts/package_release.py) builds the archive
+the loader above expects, and prints the digest to pin and the `gh` command to
+publish it:
+
+```bash
+python scripts/package_release.py runs/v5-ensemble/model_seed42.pt
+```
+
+It refuses to run without the run's `target_stats.json`, since an archive
+carrying only the trace produces a demo that loads happily and predicts
+nonsense. Pinning `EXPECTED_SHA256` in
+[`weights.py`](../src/shadow_detection/demo/weights.py) after publishing turns a
+corrupted or substituted download into an error instead of a bad prediction.
+
 ## API
 
 `POST /api/predict` takes a multipart image and returns:
