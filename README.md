@@ -83,7 +83,7 @@ Full write-up: [`docs/method.md`](docs/method.md).
 git clone https://github.com/alex-krasnoshtanov/Detection-by-Shadow
 cd Detection-by-Shadow
 uv sync --extra dev          # or: pip install -e ".[dev]"
-pytest                       # 155 tests, no dataset or GPU needed
+pytest                       # 160 tests, no dataset or GPU needed
 ```
 
 The dataset is not redistributed — it belongs to the challenge organisers. See
@@ -112,7 +112,12 @@ Filipp's repository as a TorchScript archive; `predict` takes it directly.
 gh release download v1.0.0 --repo filipp-lotsmanov/shadow-detection
 tar -xzf model_artifacts.tar.gz          # -> model.pt, target_stats.json
 
-shadow-detection predict   --test-dir path/to/frames   --sample-csv results/submission_example.csv   --checkpoints model.pt   --target-stats target_stats.json   --output submission.csv
+shadow-detection predict \
+  --test-dir path/to/frames \
+  --sample-csv results/submission_example.csv \
+  --checkpoints model.pt \
+  --target-stats target_stats.json \
+  --output submission.csv
 ```
 
 `--checkpoints` accepts either form: a `state_dict` from `train`, or a
@@ -151,7 +156,7 @@ docs/            method, experiment log, dataset description
 notebooks/       the five as-run hackathon notebooks, outputs preserved
 explorations/    a classical + SAM3 pipeline, tried and dropped
 results/         the submission CSVs that survive locally
-tests/           155 tests, including a CPU train→predict→blend round trip
+tests/           160 tests, including a CPU train→predict→blend round trip
 ```
 
 The notebooks are archives, not the interface — they carry the training logs
