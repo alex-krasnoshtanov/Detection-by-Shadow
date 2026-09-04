@@ -11,6 +11,7 @@ untrained trunk. The predictions are garbage; the plumbing is what matters.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 import torch
@@ -275,7 +276,15 @@ class TestRoundTrip:
         assert submission["direction"].isin([-1, 0, 1]).all()
 
     def test_predict_explains_a_missing_target_stats_file(self, tmp_path, tiny_testset):
+        """A checkpoint with no stats beside it cannot denormalise anything, so
+        say that rather than failing later with a KeyError."""
+        from shadow_detection.model import ShadowNet
+
         test_dir, sample_csv, _ = tiny_testset
+        orphan = tmp_path / "orphan" / "model_seed1.pt"
+        orphan.parent.mkdir()
+        torch.save(ShadowNet(pretrained=False).state_dict(), orphan)
+
         with pytest.raises(SystemExit, match="target statistics not found"):
             main(
                 [
@@ -285,7 +294,7 @@ class TestRoundTrip:
                     "--sample-csv",
                     str(sample_csv),
                     "--checkpoints",
-                    str(tmp_path / "missing.pt"),
+                    str(orphan),
                     "--output",
                     str(tmp_path / "out.csv"),
                     "--device",
@@ -531,3 +540,79 @@ def test_a_wrong_side_scores_zero_iou():
         frame=FrameSize(720, 480),
     )
     assert total == pytest.approx(0.0)
+
+
+class TestCheckpointExpansion:
+    """POSIX shells expand `model_seed*.pt`; PowerShell hands the pattern
+    through verbatim. The documented command has to work in both."""
+
+    @pytest.fixture
+    def run_dir(self, tmp_path, monkeypatch):
+        from shadow_detection.model import ShadowNet
+
+        directory = tmp_path / "runs" / "v5"
+        directory.mkdir(parents=True)
+        for seed in (42, 123, 777):
+            torch.save(ShadowNet(pretrained=False).state_dict(), directory / f"model_seed{seed}.pt")
+        monkeypatch.chdir(tmp_path)
+        return Path("runs/v5")
+
+    def test_a_glob_expands_and_sorts(self, run_dir):
+        from shadow_detection.cli import _expand_checkpoints
+
+        found = _expand_checkpoints([run_dir / "model_seed*.pt"])
+        assert [p.name for p in found] == [
+            "model_seed123.pt",
+            "model_seed42.pt",
+            "model_seed777.pt",
+        ]
+
+    def test_explicit_paths_pass_through_in_order(self, run_dir):
+        from shadow_detection.cli import _expand_checkpoints
+
+        given = [run_dir / "model_seed777.pt", run_dir / "model_seed42.pt"]
+        assert [p.name for p in _expand_checkpoints(given)] == [
+            "model_seed777.pt",
+            "model_seed42.pt",
+        ]
+
+    def test_overlapping_patterns_do_not_double_weight_a_model(self, run_dir):
+        """An ensemble average over a duplicated checkpoint silently weights
+        that seed twice."""
+        from shadow_detection.cli import _expand_checkpoints
+
+        found = _expand_checkpoints([run_dir / "model_seed*.pt", run_dir / "model_seed42.pt"])
+        assert len(found) == 3
+
+    def test_a_pattern_matching_nothing_is_an_error(self, run_dir):
+        from shadow_detection.cli import _expand_checkpoints
+
+        with pytest.raises(SystemExit, match="no checkpoints matched"):
+            _expand_checkpoints([run_dir / "model_seedNONE*.pt"])
+
+    def test_a_missing_explicit_path_is_an_error(self, run_dir):
+        from shadow_detection.cli import _expand_checkpoints
+
+        with pytest.raises(SystemExit, match="checkpoint not found"):
+            _expand_checkpoints([run_dir / "absent.pt"])
+
+
+def test_predict_reports_a_missing_checkpoint_before_anything_else(tmp_path, tiny_testset):
+    """The path that used to reach the stats check with a nonexistent file."""
+    test_dir, sample_csv, _ = tiny_testset
+    with pytest.raises(SystemExit, match="checkpoint not found"):
+        main(
+            [
+                "predict",
+                "--test-dir",
+                str(test_dir),
+                "--sample-csv",
+                str(sample_csv),
+                "--checkpoints",
+                str(tmp_path / "missing.pt"),
+                "--output",
+                str(tmp_path / "out.csv"),
+                "--device",
+                "cpu",
+            ]
+        )

@@ -158,6 +158,34 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _expand_checkpoints(paths: list[Path]) -> list[Path]:
+    """Expand any glob patterns, and sort for a stable ensemble order.
+
+    POSIX shells expand ``model_seed*.pt`` before argparse ever sees it;
+    PowerShell does not expand globs for external commands, so on Windows the
+    literal pattern arrives here and would fail as a missing file. Expanding
+    both makes the documented command work in either shell.
+    """
+    expanded: list[Path] = []
+    for path in paths:
+        if any(character in str(path) for character in "*?["):
+            matches = sorted(Path().glob(str(path).replace("\\", "/")))
+            if not matches:
+                raise SystemExit(f"no checkpoints matched {path}")
+            expanded.extend(matches)
+        else:
+            if not path.exists():
+                raise SystemExit(f"checkpoint not found: {path}")
+            expanded.append(path)
+
+    # Deduplicate while keeping order, so overlapping patterns do not weight a
+    # model twice in the ensemble average.
+    seen: dict[Path, None] = {}
+    for path in expanded:
+        seen.setdefault(path.resolve(), None)
+    return list(seen)
+
+
 def _resolve_train_config(args: argparse.Namespace) -> TrainConfig:
     """Apply command-line overrides on top of the chosen preset."""
     preset = PRESETS[args.preset]
@@ -216,7 +244,8 @@ def _command_predict(args: argparse.Namespace) -> int:
     )
     from shadow_detection.train import pick_device
 
-    stats_path = args.target_stats or args.checkpoints[0].parent / "target_stats.json"
+    checkpoints = _expand_checkpoints(args.checkpoints)
+    stats_path = args.target_stats or checkpoints[0].parent / "target_stats.json"
     if not stats_path.exists():
         raise SystemExit(
             f"target statistics not found at {stats_path}. Training writes this file next to "
@@ -227,11 +256,11 @@ def _command_predict(args: argparse.Namespace) -> int:
     device = pick_device(args.device)
     input_size = None if args.native_resolution else tuple(args.input_size)
     ids = read_submission_ids(args.sample_csv)
-    print(f"{len(ids)} test ids, {len(args.checkpoints)} checkpoint(s), device={device}")
+    print(f"{len(ids)} test ids, {len(checkpoints)} checkpoint(s), device={device}")
 
     runs = []
-    for index, checkpoint in enumerate(args.checkpoints, start=1):
-        print(f"predicting with {checkpoint.name} ({index}/{len(args.checkpoints)})")
+    for index, checkpoint in enumerate(checkpoints, start=1):
+        print(f"predicting with {checkpoint.name} ({index}/{len(checkpoints)})")
         model = load_for_inference(checkpoint, device=device)
         runs.append(
             predict_with_model(

@@ -92,7 +92,7 @@ Full write-up: [`docs/method.md`](docs/method.md).
 git clone https://github.com/alex-krasnoshtanov/Detection-by-Shadow
 cd Detection-by-Shadow
 uv sync --extra dev          # or: pip install -e ".[dev]"
-pytest                       # 196 tests, no dataset or GPU needed
+pytest                       # 202 tests, no dataset or GPU needed
 ```
 
 ### Try it in a browser
@@ -198,7 +198,7 @@ docs/            method, experiment log, dataset description, demo
 notebooks/       the five as-run hackathon notebooks, outputs preserved
 explorations/    a classical + SAM3 pipeline, tried and dropped
 results/         the submission CSVs that survive locally
-tests/           196 tests, including a CPU train→predict→blend round trip
+tests/           202 tests, including a CPU train→predict→blend round trip
 ```
 
 The notebooks are archives, not the interface — they carry the training logs
