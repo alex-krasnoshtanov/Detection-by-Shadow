@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import random
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,6 +22,7 @@ import torch
 from sklearn.model_selection import train_test_split
 from torch import nn, optim
 from torch.utils.data import DataLoader
+from tqdm.auto import tqdm
 
 from shadow_detection.config import TrainConfig
 from shadow_detection.data import (
@@ -163,10 +165,21 @@ def train_one_seed(
 
     print(f"seed {seed}: {len(train_samples)} train, {len(val_samples)} val, {cfg.epochs} epochs")
 
+    # A bar per epoch, only when someone is actually watching. Redirected output
+    # (CI, a log file, the test suite) gets the plain per-epoch lines instead.
+    show_progress = sys.stdout.isatty()
+
     for epoch in range(cfg.epochs):
         model.train()
         running, seen = 0.0, 0
-        for raw_batch in train_loader:
+        batches = tqdm(
+            train_loader,
+            desc=f"seed {seed} · epoch {epoch + 1}/{cfg.epochs}",
+            unit="batch",
+            leave=False,
+            disable=not show_progress,
+        )
+        for raw_batch in batches:
             batch = _to_device(raw_batch, device)
             optimizer.zero_grad(set_to_none=True)
             with torch.amp.autocast("cuda", enabled=use_amp):
@@ -178,17 +191,23 @@ def train_one_seed(
             scaler.update()
             running += loss.item() * batch["image"].size(0)
             seen += batch["image"].size(0)
+            if show_progress:
+                batches.set_postfix(loss=f"{running / max(seen, 1):.4f}", refresh=False)
+        batches.close()
 
         train_loss = running / max(seen, 1)
         history["train_loss"].append(train_loss)
 
         if val_loader is None:
             scheduler.step()
-            if epoch % 10 == 0 or epoch == cfg.epochs - 1:
-                print(
-                    f"  ep {epoch:3d}/{cfg.epochs} | loss={train_loss:.4f} "
-                    f"| {time.time() - started:.0f}s"
-                )
+            # Every epoch, not every tenth: with no validation split this line
+            # is the only signal that anything is happening, and 40 lines is
+            # not a lot to read.
+            print(
+                f"  ep {epoch + 1:3d}/{cfg.epochs} | loss {train_loss:.4f} "
+                f"| lr {optimizer.param_groups[-1]['lr']:.2e} "
+                f"| {time.time() - started:.0f}s elapsed"
+            )
             continue
 
         val_loss, side_acc, direction_acc = _evaluate(

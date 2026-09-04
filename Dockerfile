@@ -21,7 +21,11 @@ RUN python -m venv /opt/venv \
 
 # The dependency list lives in pyproject.toml and only there. Duplicating it
 # here would drift the moment either changed.
-COPY pyproject.toml README.md ./
+#
+# LICENSE and README.md are not optional extras: pyproject points `license` and
+# `readme` at them, so hatchling fails metadata generation outright if either is
+# missing from the build context.
+COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 RUN /opt/venv/bin/pip install ".[demo]"
 
