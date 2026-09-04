@@ -35,6 +35,10 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
+          # No uv.lock is committed: torch resolves differently per platform,
+          # so a lock pinning the CPU wheel would be wrong for GPU users.
+          # Key the cache on pyproject instead of setup-uv's uv.lock default.
+          cache-dependency-glob: pyproject.toml
       - name: Install
         run: uv pip install --system -e ".[dev]"
       - name: Test
