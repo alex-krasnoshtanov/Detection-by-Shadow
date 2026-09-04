@@ -1,10 +1,10 @@
 """Weighted blending of finished submission CSVs.
 
-The last hour of the hackathon was spent here rather than in training. Two
-sub-teams had arrived at different models -- this repository's seed ensemble
-and a separately developed variant -- and averaging their box coordinates is
-the cheapest possible way to combine them: it needs no shared code, no shared
-checkpoints and no retraining, just the CSVs.
+The last hour of the hackathon was spent here rather than in training. Three
+people had each developed a model -- this repository's seed ensemble among them
+-- and averaging their box coordinates is the cheapest possible way to combine
+them: it needs no shared code, no shared checkpoints and no retraining, just
+the CSVs.
 
 It is also the crudest. Averaging coordinates across models that disagree about
 which *side* the person is on lands the box in the middle of the frame -- where

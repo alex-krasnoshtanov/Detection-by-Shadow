@@ -155,18 +155,31 @@ by a test so it cannot be fixed silently.
 
 ## Credits
 
-A four-person team split into two pairs for the twelve hours of the hackathon.
+A three-person team — [Filipp Lotsmanov](https://github.com/filipp-lotsmanov),
+Oleksii Krasnoshtanov and Danil Sysenko — over the twelve hours of the hackathon.
+We each developed a model in parallel and the final submission blended our
+individual best results.
 
-This repository is my own work — exploratory analysis, the v1/v2 direct-regression
-line, the 19 shadow descriptors, the full-resolution and all-data ensemble runs,
-and this rewrite. **The decomposed target formulation originated with the other
-pair**, as their `384x384` baseline (leaderboard 0.590); adopting it is what
-unlocked everything after v2, and the credit for the idea is theirs.
-[Filipp Lotsmanov](https://github.com/FilippLotsmanov) was the other half of my
-pair and contributed a parallel exploratory analysis, which is not included here.
+**The decomposed target formulation did not originate with me.** I adopted it
+from a teammate's `384x384` baseline; my own notebook from the day records it as
+"their decomposed model", and it is what unlocked everything after v2. The
+`extract_geometric_features` implementation is shared across the team's models —
+the same 19 descriptors, constants and index map appear in Filipp's repository
+and in my notebooks.
+
+What is mine here: the exploratory analysis, the v1/v2 direct-regression line
+that diagnosed the target-space problem, the full-resolution and all-data
+3-seed ensemble runs, and this rewrite into a tested package.
+
+Filipp has published his own pipeline, with a runnable FastAPI + Next.js demo
+and trained weights:
+**[filipp-lotsmanov/shadow-detection](https://github.com/filipp-lotsmanov/shadow-detection)**.
+Worth reading alongside this one — his repository is the deployable artifact,
+this one is the method and the experiment record.
 
 Original hackathon repository (university account, full commit history):
 [OleksiiKrasnoshtanov240247/Hackaton](https://github.com/OleksiiKrasnoshtanov240247/Hackaton).
+Filipp's parallel exploratory notebook lives there and is not reproduced here.
 
 ## Licence
 

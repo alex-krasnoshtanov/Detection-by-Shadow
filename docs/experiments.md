@@ -36,7 +36,7 @@ attributing the gain.
 | v0 | Classical shadow segmentation + optional SAM3, geometric heuristic | — | not submitted | [explorations/](../explorations) |
 | v1 | ResNet-18, direct box regression, 320x320, GIoU | — | not recorded | [02](../notebooks/02_v1_direct_regression.ipynb) |
 | v2 | ResNet-50, 576x384, GIoU + SmoothL1, freeze/unfreeze, TTA | **0.4675 IoU** | not recorded | [03](../notebooks/03_v2_giou_resnet50.ipynb) |
-| v3 | Decomposed targets @ 384x384 (the other sub-team's baseline) | — | 0.590 | — |
+| v3 | Decomposed targets @ 384x384 (a teammate's baseline) | — | 0.590 | — |
 | v4 | Decomposed @ native 720x480 + 19 shadow features + TTA | side 1.000, dir 0.547 | 0.614 | [04](../notebooks/04_v4_full_resolution.ipynb) |
 | v5 | Decomposed @ 384x384, all 1693 samples, single seed | — | 0.604 / 0.618 / 0.620 | [05](../notebooks/05_v5_ensemble.ipynb) |
 | v5-ens | Three seeds averaged + TTA | — | **0.626** | [05](../notebooks/05_v5_ensemble.ipynb) |
@@ -106,7 +106,7 @@ target.
 ## v4 — the reparameterisation
 
 Adopted the decomposed target formulation (`side` + four regressions) from the
-other sub-team's baseline, added the 19 hand-crafted descriptors, and ran at
+teammate's baseline, added the 19 hand-crafted descriptors, and ran at
 native 720x480 with no downscaling.
 
 24,864,456 parameters. Batch 32, AdamW, head LR 1e-3 / trunk 1e-4,
@@ -169,7 +169,7 @@ Two artifacts, and the record is uneven:
 `v5_seed123` ×2, `v5_seed42` ×1.5, `v4_fullres` ×1.5, `v5_seed777` ×1) ran
 successfully and wrote `submission_MEGA.csv`. **Its score is not recorded.**
 
-**A 0.7/0.3 cross-team blend** with the other sub-team's best submission
+**A 0.7/0.3 blend** with a teammate's best submission
 (leaderboard 0.601) is written out in the notebook but **the cell failed** with
 `FileNotFoundError` — their CSV was not in the working directory. Whether the
 blend was completed elsewhere is not recorded either. The failed cell is
