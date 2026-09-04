@@ -141,3 +141,49 @@ class ShadowNet(nn.Module):
         state = torch.load(path, map_location=device, weights_only=True)
         model.load_state_dict(state)
         return model.to(device).eval()
+
+    def export_torchscript(self, path: Path, input_size: tuple[int, int] = (384, 384)) -> Path:
+        """Trace the model to a self-contained TorchScript archive.
+
+        A trace carries the graph as well as the weights, so it loads without
+        this package installed -- which is what makes a released artifact
+        usable by a web backend that should not depend on the training code.
+        """
+        self.eval()
+        example = (
+            torch.randn(1, 3, *input_size),
+            torch.randn(1, max(self.num_features, 1)),
+        )
+        traced = torch.jit.trace(self, example if self.num_features else example[:1])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        torch.jit.save(traced, str(path))
+        return path
+
+
+def load_for_inference(
+    path: Path,
+    device: torch.device | str = "cpu",
+    num_features: int = NUM_FEATURES,
+) -> torch.nn.Module:
+    """Load a checkpoint for prediction, whichever form it is saved in.
+
+    Accepts both of the shapes this project produces:
+
+    * a ``state_dict`` written by :mod:`shadow_detection.train`, and
+    * a **TorchScript** archive, which is how the team's released weights ship
+      so that a deployment does not have to install the training package.
+
+    Both come back as something callable as ``model(image, features)``
+    returning ``(side_logits, regression, direction_logits)``, so
+    :func:`~shadow_detection.predict.predict_with_model` neither knows nor
+    cares which it was handed.
+    """
+    path = Path(path)
+    try:
+        # A TorchScript archive is a zip with a code/ directory; torch.load
+        # rejects it, and torch.jit.load rejects a plain state_dict, so trying
+        # one and falling back is a reliable discriminator.
+        model = torch.jit.load(str(path), map_location=device)
+    except RuntimeError:
+        return ShadowNet.from_checkpoint(path, device=device, num_features=num_features)
+    return model.to(device).eval()

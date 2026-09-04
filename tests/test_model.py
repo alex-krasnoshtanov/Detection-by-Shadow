@@ -119,3 +119,75 @@ def test_parameter_count_matches_the_published_run():
     to claim the published result."""
     model = ShadowNet(pretrained=False)
     assert sum(p.numel() for p in model.parameters()) == 24_864_456
+
+
+class TestLoadForInference:
+    """Prediction has to accept both artifact shapes this project produces.
+
+    The training loop writes a state_dict; the team's released weights ship as
+    a TorchScript archive so a deployment need not install this package. Both
+    have to arrive at predict_with_model as something callable the same way.
+    """
+
+    def test_loads_a_state_dict(self, tmp_path, model):
+        from shadow_detection.model import load_for_inference
+
+        path = tmp_path / "model_seed42.pt"
+        torch.save(model.state_dict(), path)
+        loaded = load_for_inference(path)
+        assert isinstance(loaded, ShadowNet)
+        assert not loaded.training
+
+    def test_loads_a_torchscript_archive(self, tmp_path, model):
+        from shadow_detection.model import load_for_inference
+
+        path = model.export_torchscript(tmp_path / "model.pt", input_size=(64, 64))
+        loaded = load_for_inference(path)
+        assert isinstance(loaded, torch.jit.ScriptModule)
+        assert not loaded.training
+
+    def test_both_forms_agree_numerically(self, tmp_path, model):
+        """A trace that disagreed with its source would silently change every
+        prediction made from a released artifact."""
+        from shadow_detection.model import load_for_inference
+
+        images, features = _inputs(height=64, width=64)
+        state_path = tmp_path / "state.pt"
+        torch.save(model.state_dict(), state_path)
+        script_path = model.export_torchscript(tmp_path / "traced.pt", input_size=(64, 64))
+
+        with torch.no_grad():
+            a = load_for_inference(state_path)(images, features)
+            b = load_for_inference(script_path)(images, features)
+        for x, y in zip(a, b, strict=True):
+            assert torch.allclose(x, y, atol=1e-5)
+
+    def test_torchscript_works_through_the_prediction_path(self, tmp_path, model):
+        """The point of the abstraction: predict_with_model should not know or
+        care which form it was handed."""
+        from PIL import Image
+
+        from shadow_detection.model import load_for_inference
+        from shadow_detection.predict import predict_with_model
+        from tests.conftest import make_road_image
+
+        Image.fromarray(make_road_image()).save(tmp_path / "image_0.png")
+        script_path = model.export_torchscript(tmp_path / "traced.pt", input_size=(64, 64))
+
+        predictions = predict_with_model(
+            load_for_inference(script_path),
+            ["image_0"],
+            tmp_path,
+            input_size=(64, 64),
+            tta=True,
+        )
+        assert predictions[0].regression.shape == (4,)
+        assert predictions[0].side_probs.sum() == pytest.approx(1.0, abs=1e-5)
+
+    def test_a_corrupt_file_is_not_silently_accepted(self, tmp_path):
+        from shadow_detection.model import load_for_inference
+
+        path = tmp_path / "junk.pt"
+        path.write_bytes(b"this is not a checkpoint")
+        with pytest.raises(Exception):  # noqa: B017 - torch raises several types here
+            load_for_inference(path)

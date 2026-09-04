@@ -40,12 +40,17 @@ against a 48.3% base rate, so declining to answer beat guessing.
 
 ## The good submissions are gone
 
-The v4 and v5 files — including the 0.626 three-seed ensemble, the best result
-this repository can evidence — were written to the university GPU server and
-not retrieved before access ended. Only their leaderboard scores survive,
-recorded in the last cell of
+The v4 and v5 files — including the 0.626 three-seed ensemble — were written to
+the university GPU server and not retrieved before access ended. Only their
+leaderboard scores survive, recorded in the last cell of
 [notebook 05](../notebooks/05_v5_ensemble.ipynb) and tabulated in
 [`docs/experiments.md`](../docs/experiments.md).
 
 So both files here are from the superseded direct-regression architecture. They
 are historical artifacts, not anything to reproduce.
+
+A trained model from the same decomposed architecture *does* survive, published
+from Filipp's repository — see
+[Checkpoints](../docs/experiments.md#checkpoints). `shadow-detection predict`
+loads it directly, which is the quickest way to regenerate a well-formed
+submission and see what one should look like.

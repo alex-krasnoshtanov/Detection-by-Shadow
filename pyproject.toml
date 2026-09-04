@@ -51,6 +51,13 @@ packages = ["src/shadow_detection"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"
+filterwarnings = [
+    "error",
+    # torch 2.14 deprecates the TorchScript API in favour of torch.export, but
+    # the released weights ship as a TorchScript archive, so loading them is
+    # still required. Revisit if the artifact is ever re-exported.
+    "default:`torch.jit.(load|save|trace|trace_method)` is deprecated:FutureWarning",
+]
 
 [tool.ruff]
 line-length = 100

@@ -244,11 +244,53 @@ notebooks did not save, and which cost real time.
 
 ## Checkpoints
 
-Not published. The v5 weights lived on the university GPU server and were not
-retrieved before access ended; the two surviving local checkpoints are from the
-superseded v1 and v2 architectures, so they would not reproduce anything
-documented here. Training the ensemble from scratch takes about half an hour on
-one modern GPU, which is cheaper than hosting 300 MB of weights.
+My own v5 weights are gone: they lived on the university GPU server and were
+not retrieved before access ended. The two surviving local checkpoints are from
+the superseded v1 and v2 architectures and would not reproduce anything
+documented here.
+
+A trained model does survive, though. Filipp published one from the same
+decomposed architecture as a TorchScript archive:
+
+```bash
+gh release download v1.0.0 --repo filipp-lotsmanov/shadow-detection
+tar -xzf model_artifacts.tar.gz     # -> model.pt, target_stats.json
+```
+
+Its `target_stats.json` matches the values logged in
+[notebook 04](../notebooks/04_v4_full_resolution.ipynb) to two decimal places
+(208.58/80.85/172.90/309.33 against 208.59/80.87/172.91/309.34), which is a
+useful independent check that both lineages standardised against the same data.
 
 The v1 and v2 submission CSVs are in [`results/`](../results) as historical
 artifacts.
+
+## Cross-checking this rewrite against those weights
+
+The rewrite in [`src/shadow_detection/`](../src/shadow_detection) reimplements a
+feature extractor, a mirror map, a TTA scheme and a box reconstruction, any of
+which could have drifted from the notebooks during the port. Running the
+released weights through it is a direct check: a wrong feature ordering, a
+broken mirror map or an inverted TTA reversal would all show up as collapsed
+IoU, because the weights expect the original conventions exactly.
+
+Over the eight frames Filipp publishes with ground truth:
+
+| Metric | Value |
+| --- | --- |
+| Mean IoU | 0.782 |
+| Median IoU | 0.812 |
+| Range | 0.405 – 0.970 |
+| IoU > 0.5 | 7 / 8 |
+| Side classified correctly | 8 / 8, all at p = 1.000 |
+| Direction | abstained on all 8 |
+
+**This is not an evaluation.** All eight are training frames and the released
+model trained on every one of them, so the number is optimistic by construction
+and says nothing about generalisation. What it does establish is that this
+package's inference path agrees with the code that produced the weights.
+
+The rendered comparison is [`assets/predictions.png`](../assets/predictions.png).
+Note that direction abstained on all eight even for a model whose author reports
+65–70% direction accuracy at best — consistent with everything else here about
+that head.

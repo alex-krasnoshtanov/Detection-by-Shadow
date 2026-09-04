@@ -7,7 +7,8 @@ shadow they cast into it.**
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Winner — DEMCON Deep Tech track, BrabantHack 2026.**
+**Winning entry — DEMCON Deep Tech track, BrabantHack 2026**, with a
+three-person team.
 
 A vehicle-mounted camera sees a shadow stretching in from the edge of frame.
 The person casting it is off-screen, possibly about to step into the road.
@@ -26,9 +27,21 @@ they are walking into frame.
 | **Decomposed targets, 3-seed ensemble** | **0.626** | — |
 
 Both columns are IoU, on different sets — the left over the organisers' 414
-held-out frames, the right over a slice of the training data.
+held-out frames, the right over a slice of the training data. The 0.626 is the
+team's winning score; development was collaborative, so read it as the team's
+number rather than any one model's.
 [`docs/experiments.md`](docs/experiments.md) records exactly what was and was
 not measured, including where the record has gaps.
+
+![Predicted versus actual position of an off-frame pedestrian](assets/predictions.png)
+
+Above: the released weights run through this package's own prediction path.
+Both boxes sit almost entirely outside the dashed camera frame, which is what
+makes the task odd and the reparameterisation necessary. These eight frames are
+*training* frames — they are the ones with published ground truth — so the
+0.782 there measures whether this implementation agrees with the code that
+produced the weights, not held-out accuracy. Reproduce it with
+[`shadow-detection predict`](#run-it-on-the-released-weights).
 
 ## The one idea that mattered
 
@@ -90,7 +103,26 @@ shadow-detection predict \
   --output runs/submission.csv
 ```
 
-No dataset to hand? The descriptors run on any road photograph:
+### Run it on the released weights
+
+No dataset and no GPU needed. The team's trained model is published from
+Filipp's repository as a TorchScript archive; `predict` takes it directly.
+
+```bash
+gh release download v1.0.0 --repo filipp-lotsmanov/shadow-detection
+tar -xzf model_artifacts.tar.gz          # -> model.pt, target_stats.json
+
+shadow-detection predict   --test-dir path/to/frames   --sample-csv results/submission_example.csv   --checkpoints model.pt   --target-stats target_stats.json   --output submission.csv
+```
+
+`--checkpoints` accepts either form: a `state_dict` from `train`, or a
+TorchScript archive like this one. That is deliberate — a deployment should not
+have to install the training package to load a model, so the released artifact
+carries its own graph, and
+[`load_for_inference`](src/shadow_detection/model.py) sorts out which it was
+handed.
+
+No dataset to hand at all? The descriptors run on any road photograph:
 
 ```bash
 shadow-detection features path/to/frame.png --mirrored
@@ -143,9 +175,12 @@ The results flatter the method, and it is worth saying how:
 - **The feature block was never ablated.** `ShadowNet(num_features=0)` builds
   the image-only comparison and is tested, but no run measured it. The v2→v4
   jump changed three things at once.
-- **The best score is the best score that can be evidenced.** A cross-team
-  blend was attempted in the final hour; that notebook cell failed and no
-  result was recorded. 0.626 is what stands.
+- **The best score is the best score that can be evidenced.** A blend across
+  the team's models was attempted in the final hour; that notebook cell failed
+  and no result was recorded. 0.626 is what stands.
+- **The figure is not a held-out evaluation.** Those eight frames are training
+  frames, and the released model trained on all of them. It shows the pipeline
+  agrees end to end; it does not measure generalisation.
 - **Feature thresholds were chosen by eye** and never swept.
 
 [`docs/method.md#known-issues`](docs/method.md#known-issues) has the rest,
@@ -156,26 +191,23 @@ by a test so it cannot be fixed silently.
 ## Credits
 
 A three-person team — [Filipp Lotsmanov](https://github.com/filipp-lotsmanov),
-Oleksii Krasnoshtanov and Danil Sysenko — over the twelve hours of the hackathon.
-We each developed a model in parallel and the final submission blended our
-individual best results.
+Oleksii Krasnoshtanov and Danil Sysenko.
 
-**The decomposed target formulation did not originate with me.** I adopted it
-from a teammate's `384x384` baseline; my own notebook from the day records it as
-"their decomposed model", and it is what unlocked everything after v2. The
-`extract_geometric_features` implementation is shared across the team's models —
-the same 19 descriptors, constants and index map appear in Filipp's repository
-and in my notebooks.
+Collaborative in the way hackathons are: notebooks passed between us, and
+whoever's run scored best became everyone's starting point. The decomposed
+target formulation, the 19 geometric descriptors and the flip-aware
+augmentation all came out of that loop rather than from any one of us, and
+**0.626 was the team's result, not a solo one.**
 
-What is mine here: the exploratory analysis, the v1/v2 direct-regression line
-that diagnosed the target-space problem, the full-resolution and all-data
-3-seed ensemble runs, and this rewrite into a tested package.
+What this repository adds on top of the shared work: the exploratory analysis
+and the v1/v2 direct-regression line that diagnosed the target-space problem,
+the full-resolution and all-data ensemble runs, and this rewrite into a tested
+package.
 
-Filipp has published his own pipeline, with a runnable FastAPI + Next.js demo
-and trained weights:
+Filipp has published the deployable half — a FastAPI + Next.js demo and the
+trained weights:
 **[filipp-lotsmanov/shadow-detection](https://github.com/filipp-lotsmanov/shadow-detection)**.
-Worth reading alongside this one — his repository is the deployable artifact,
-this one is the method and the experiment record.
+The figure above and the quickstart below both run on that release.
 
 Original hackathon repository (university account, full commit history):
 [OleksiiKrasnoshtanov240247/Hackaton](https://github.com/OleksiiKrasnoshtanov240247/Hackaton).

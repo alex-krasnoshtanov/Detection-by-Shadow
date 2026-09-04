@@ -63,7 +63,11 @@ def build_parser() -> argparse.ArgumentParser:
     predict_parser.add_argument("--test-dir", type=Path, required=True)
     predict_parser.add_argument("--sample-csv", type=Path, required=True, help="defines id order")
     predict_parser.add_argument(
-        "--checkpoints", type=Path, nargs="+", required=True, help="one or more model_seed*.pt"
+        "--checkpoints",
+        type=Path,
+        nargs="+",
+        required=True,
+        help="one or more model_seed*.pt, or a released TorchScript model.pt",
     )
     predict_parser.add_argument(
         "--target-stats",
@@ -172,7 +176,7 @@ def _command_predict(args: argparse.Namespace) -> int:
     import torch
 
     from shadow_detection.data import TargetStats
-    from shadow_detection.model import ShadowNet
+    from shadow_detection.model import load_for_inference
     from shadow_detection.predict import (
         average_predictions,
         predict_with_model,
@@ -198,7 +202,7 @@ def _command_predict(args: argparse.Namespace) -> int:
     runs = []
     for index, checkpoint in enumerate(args.checkpoints, start=1):
         print(f"predicting with {checkpoint.name} ({index}/{len(args.checkpoints)})")
-        model = ShadowNet.from_checkpoint(checkpoint, device=device)
+        model = load_for_inference(checkpoint, device=device)
         runs.append(
             predict_with_model(
                 model,

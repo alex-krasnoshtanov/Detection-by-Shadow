@@ -2,9 +2,10 @@
 
 The data comes from the DEMCON challenge at BrabantHack 2026 and is **not
 redistributed here**. It is not ours to license, and the repository's
-`.gitignore` excludes `data/` so it cannot be committed by accident. The
-handful of sample frames visible in the EDA notebook's saved plots are there to
-illustrate the analysis.
+`.gitignore` excludes `data/` so it cannot be committed by accident. The only
+frames that appear are illustrative: a handful inside the EDA notebook's saved
+plots, and the eight rendered into
+[`assets/predictions.png`](../assets/predictions.png).
 
 Everything below was measured on the training split during the hackathon; the
 numbers are reproduced in [`01_eda.ipynb`](../notebooks/01_eda.ipynb).
