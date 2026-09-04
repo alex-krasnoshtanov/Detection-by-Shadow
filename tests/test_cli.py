@@ -366,3 +366,76 @@ def test_stratified_split_explains_a_too_small_holdout(tiny_dataset, tmp_path):
     samples = build_samples(tiny_dataset, cfg.frame, progress=False)
     with pytest.raises(ValueError, match=r"stratified across 4 \(side, direction\) groups"):
         train(cfg, samples, device=torch.device("cpu"))
+
+
+class TestExport:
+    def test_export_writes_a_loadable_trace_and_the_stats_beside_it(self, tiny_dataset, tmp_path):
+        """A trace on its own is not deployable: without target_stats.json the
+        regression head's output cannot be turned back into pixels. The pair is
+        the artifact, so export ships both."""
+        run_dir = tmp_path / "run"
+        main(
+            [
+                "train",
+                "--train-dir",
+                str(tiny_dataset),
+                "--output-dir",
+                str(run_dir),
+                "--seeds",
+                "1",
+                "--epochs",
+                "1",
+                "--batch-size",
+                "4",
+                "--num-workers",
+                "0",
+                "--device",
+                "cpu",
+            ]
+        )
+
+        deploy = tmp_path / "deploy" / "model.pt"
+        assert (
+            main(
+                [
+                    "export",
+                    str(run_dir / "model_seed1.pt"),
+                    "-o",
+                    str(deploy),
+                    "--input-size",
+                    "64",
+                    "64",
+                ]
+            )
+            == 0
+        )
+        assert deploy.exists()
+        assert (deploy.parent / "target_stats.json").exists()
+
+        traced = torch.jit.load(str(deploy), map_location="cpu")
+        images = torch.randn(2, 3, 64, 64)
+        features = torch.randn(2, 19)
+        with torch.no_grad():
+            side, regression, direction = traced(images, features)
+        assert side.shape == (2, 2)
+        assert regression.shape == (2, 4)
+        assert direction.shape == (2, 2)
+
+    def test_export_warns_when_the_stats_are_missing(self, tmp_path, capsys):
+        from shadow_detection.model import ShadowNet
+
+        checkpoint = tmp_path / "orphan.pt"
+        torch.save(ShadowNet(pretrained=False).state_dict(), checkpoint)
+
+        main(
+            [
+                "export",
+                str(checkpoint),
+                "-o",
+                str(tmp_path / "out" / "model.pt"),
+                "--input-size",
+                "64",
+                "64",
+            ]
+        )
+        assert "no target_stats.json" in capsys.readouterr().out

@@ -279,3 +279,55 @@ def test_left_and_right_are_the_documented_class_indices():
     """The side head's class order is load-bearing: the TTA reversal and the
     box reconstruction both assume index 0 is left."""
     assert (LEFT, RIGHT) == (0, 1)
+
+
+class TestOutputClamps:
+    """A regression head can emit values no box can have.
+
+    A negative distance places a left-edge person *inside* the frame; a
+    two-pixel-tall box scores zero against anything. Both produce a submission
+    row that looks numerically fine and is silently worthless, so the floors
+    are applied before reconstruction.
+    """
+
+    def test_negative_distance_is_floored_at_the_frame_edge(self):
+        table = to_submission([raw(distance=-150.0, side_probs=(0.9, 0.1))], IDENTITY_STATS, FRAME)
+        row = table.iloc[0]
+        assert row["xmin"] == pytest.approx(0.0)
+        # Still built outwards from the edge, so the box does not invert.
+        assert row["xmax"] > row["xmin"]
+
+    def test_negative_distance_on_the_right_edge_too(self):
+        table = to_submission([raw(distance=-150.0, side_probs=(0.1, 0.9))], IDENTITY_STATS, FRAME)
+        row = table.iloc[0]
+        assert row["xmax"] == pytest.approx(float(FRAME.width))
+
+    def test_degenerate_width_and_height_are_floored(self):
+        table = to_submission([raw(width=1.0, height=3.0)], IDENTITY_STATS, FRAME)
+        row = table.iloc[0]
+        assert row["xmax"] - row["xmin"] == pytest.approx(10.0)
+        assert row["ymax"] - row["ymin"] == pytest.approx(50.0)
+
+    def test_clamps_never_bind_on_a_plausible_prediction(self):
+        """The floors are slack against the real data -- the smallest annotated
+        box is 26.8 x 116.5 px -- so they must not perturb ordinary output."""
+        table = to_submission(
+            [raw(distance=208.0, width=81.0, height=173.0, y_center=309.0)],
+            IDENTITY_STATS,
+            FRAME,
+        )
+        row = table.iloc[0]
+        assert row["xmin"] == pytest.approx(-208.0)
+        assert row["xmax"] - row["xmin"] == pytest.approx(81.0)
+        assert row["ymax"] - row["ymin"] == pytest.approx(173.0)
+
+    def test_clamped_boxes_are_never_inverted(self):
+        """Whatever the head emits, the submission must not contain a box with
+        xmin >= xmax -- the exact defect that made the v1 submission useless."""
+        wild = [
+            raw(distance=-500.0, width=-40.0, height=-90.0, side_probs=(0.9, 0.1)),
+            raw(distance=-500.0, width=-40.0, height=-90.0, side_probs=(0.1, 0.9)),
+        ]
+        table = to_submission(wild, IDENTITY_STATS, FRAME)
+        assert (table["xmin"] < table["xmax"]).all()
+        assert (table["ymin"] < table["ymax"]).all()

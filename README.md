@@ -83,7 +83,7 @@ Full write-up: [`docs/method.md`](docs/method.md).
 git clone https://github.com/alex-krasnoshtanov/Detection-by-Shadow
 cd Detection-by-Shadow
 uv sync --extra dev          # or: pip install -e ".[dev]"
-pytest                       # 160 tests, no dataset or GPU needed
+pytest                       # 167 tests, no dataset or GPU needed
 ```
 
 The dataset is not redistributed — it belongs to the challenge organisers. See
@@ -137,7 +137,9 @@ shadow-detection features path/to/frame.png --mirrored
 (the standardisation constants inference needs) and `run.json` (full config,
 per-epoch history, wall-clock). `predict` ensembles every checkpoint it is
 given and validates the submission's id order before writing it. `blend`
-weighted-averages finished submissions.
+weighted-averages finished submissions. `export` traces a checkpoint to
+TorchScript, together with the stats file it is useless without, for a
+deployment that should not have to install this package.
 
 ## Layout
 
@@ -150,13 +152,13 @@ src/shadow_detection/
   train.py       both regimes: held-out validation, or all-data + fixed budget
   predict.py     flip TTA, seed ensembling, submission guard rails
   blend.py       weighted blending of finished submissions
-  cli.py         shadow-detection {train,predict,blend,features}
+  cli.py         shadow-detection {train,predict,blend,export,features}
 
 docs/            method, experiment log, dataset description
 notebooks/       the five as-run hackathon notebooks, outputs preserved
 explorations/    a classical + SAM3 pipeline, tried and dropped
 results/         the submission CSVs that survive locally
-tests/           160 tests, including a CPU train→predict→blend round trip
+tests/           167 tests, including a CPU train→predict→blend round trip
 ```
 
 The notebooks are archives, not the interface — they carry the training logs

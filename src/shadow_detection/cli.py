@@ -118,6 +118,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="how to combine the direction column (default: abstain, i.e. -1)",
     )
 
+    # --- export -------------------------------------------------------------
+    export_parser = subparsers.add_parser(
+        "export",
+        help="convert a trained checkpoint to TorchScript for deployment",
+        description=(
+            "Trace a checkpoint to a self-contained TorchScript archive, which loads "
+            "with torch.jit.load and needs neither this package nor its dependencies."
+        ),
+    )
+    export_parser.add_argument("checkpoint", type=Path, help="a model_seed*.pt from train")
+    export_parser.add_argument("--output", "-o", type=Path, required=True, help="the .pt to write")
+    export_parser.add_argument(
+        "--input-size",
+        type=int,
+        nargs=2,
+        metavar=("H", "W"),
+        default=(384, 384),
+        help="tracing resolution; must match how the model was trained (default: 384 384)",
+    )
+
     # --- features -----------------------------------------------------------
     features_parser = subparsers.add_parser(
         "features",
@@ -240,6 +260,29 @@ def _command_blend(args: argparse.Namespace) -> int:
     return 0
 
 
+def _command_export(args: argparse.Namespace) -> int:
+    import shutil
+
+    from shadow_detection.model import ShadowNet
+
+    model = ShadowNet.from_checkpoint(args.checkpoint, device="cpu")
+    path = model.export_torchscript(args.output, input_size=tuple(args.input_size))
+    print(f"wrote {path} ({path.stat().st_size / 1e6:.1f} MB)")
+
+    # A trace alone is not deployable: without the standardisation constants
+    # its regression outputs cannot be turned back into pixels. Ship the pair.
+    stats = args.checkpoint.parent / "target_stats.json"
+    if stats.exists():
+        destination = shutil.copy(stats, args.output.parent / "target_stats.json")
+        print(f"wrote {destination}")
+    else:
+        print(
+            f"warning: no target_stats.json beside {args.checkpoint.name}. Inference needs "
+            "it to denormalise the regression head; copy it next to the exported model."
+        )
+    return 0
+
+
 def _command_features(args: argparse.Namespace) -> int:
     import numpy as np
     from PIL import Image
@@ -266,6 +309,7 @@ _COMMANDS = {
     "train": _command_train,
     "predict": _command_predict,
     "blend": _command_blend,
+    "export": _command_export,
     "features": _command_features,
 }
 

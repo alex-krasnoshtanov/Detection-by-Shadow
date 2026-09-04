@@ -45,6 +45,16 @@ DEFAULT_DIRECTION_THRESHOLD = 0.6
 #: The challenge's sentinel for "no direction prediction".
 DIRECTION_ABSTAIN = -1
 
+# A regression head is free to emit a negative distance or a box a few pixels
+# tall; neither is physically meaningful, and either produces a submission row
+# that scores zero while looking numerically fine. These floors are the ones
+# the deployed inference path uses, and they are slack enough never to bind on
+# a sane prediction -- the smallest box in the 1692 annotated training frames
+# is 26.8 px wide and 116.5 px tall.
+MIN_DISTANCE_FROM_EDGE = 0.0
+MIN_BBOX_WIDTH = 10.0
+MIN_BBOX_HEIGHT = 50.0
+
 
 @dataclass(slots=True)
 class RawPrediction:
@@ -188,12 +198,20 @@ def to_submission(
     """Reconstruct boxes and assemble a submission frame.
 
     ``direction_threshold`` of 0 or below disables abstention and always emits
-    the argmax.
+    the argmax. Regressed quantities are floored at
+    :data:`MIN_DISTANCE_FROM_EDGE`, :data:`MIN_BBOX_WIDTH` and
+    :data:`MIN_BBOX_HEIGHT` first.
     """
     frame = frame or FrameSize()
     rows = []
     for prediction in predictions:
         pixels = target_stats.denormalize_vector(prediction.regression)
+        # Clamp before reconstruction, not after: a negative distance would
+        # otherwise place a left-edge person inside the frame, which no
+        # downstream check would flag as impossible.
+        pixels["distance_from_edge"] = max(pixels["distance_from_edge"], MIN_DISTANCE_FROM_EDGE)
+        pixels["bbox_width"] = max(pixels["bbox_width"], MIN_BBOX_WIDTH)
+        pixels["bbox_height"] = max(pixels["bbox_height"], MIN_BBOX_HEIGHT)
         xmin, ymin, xmax, ymax = reconstruct(
             side=int(prediction.side_probs.argmax()),
             frame=frame,
