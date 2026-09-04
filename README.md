@@ -7,25 +7,28 @@ shadow they cast into it.**
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Built for the DEMCON challenge at BrabantHack 2026. A vehicle-mounted camera
-sees a shadow stretching in from the edge of frame; the person casting it is
-off-screen, possibly about to step into the road. Predict their bounding box —
-in coordinates *outside the image* — and whether they are walking into frame.
+**Winner — DEMCON Deep Tech track, BrabantHack 2026.**
+
+A vehicle-mounted camera sees a shadow stretching in from the edge of frame.
+The person casting it is off-screen, possibly about to step into the road.
+Predict their bounding box — in coordinates *outside the image* — and whether
+they are walking into frame.
 
 ![Decomposing an off-frame bounding box](assets/decomposition.svg)
 
 ## Result
 
-| | Leaderboard | Local validation |
+| | Test IoU | Local validation |
 | --- | --- | --- |
 | Predict the average box per side | — | 0.4295 mean IoU |
 | Direct box regression, fully tuned | not recorded | 0.4675 mean IoU |
 | Decomposed targets, native resolution | 0.614 | side accuracy **1.000** |
 | **Decomposed targets, 3-seed ensemble** | **0.626** | — |
 
-The two columns are different metrics and are not comparable with each other;
-[`docs/experiments.md`](docs/experiments.md) explains why, and records what was
-and was not measured.
+Both columns are IoU, on different sets — the left over the organisers' 414
+held-out frames, the right over a slice of the training data.
+[`docs/experiments.md`](docs/experiments.md) records exactly what was and was
+not measured, including where the record has gaps.
 
 ## The one idea that mattered
 

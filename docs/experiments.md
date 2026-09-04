@@ -4,20 +4,29 @@ A chronological record of what was tried in roughly twelve hours on
 10 April 2026, with the numbers that were actually logged. Where a number was
 not recorded, this says so rather than reconstructing it.
 
-## Two scales of number, not comparable
+The final submission won the DEMCON Deep Tech track.
 
-Read the tables with this in mind:
+## Reading the numbers
 
-- **Validation mean IoU** was computed locally on a held-out split, and is
-  directly comparable between v1 and v2.
-- **Leaderboard score** is the organisers' metric on the 414-image test set. It
-  is not plain mean IoU and its definition was not recorded, so a leaderboard
-  0.59 and a local IoU 0.47 cannot be compared with each other.
+Everything below is IoU, but measured on two different sets:
 
-The v4 and v5 runs never produced a local IoU, because by then the target was
-decomposed and the training loss was a weighted sum over five outputs rather
-than an IoU. That is a real gap: it means the jump from v2 to v4 is only
-visible on the leaderboard, where the two are measured differently.
+- **Leaderboard** — the organisers' score over the 414 test images, whose labels
+  we never had. This is what the challenge was judged on and where 0.626 comes
+  from.
+- **Local validation** — mean IoU over a slice held out of the 1693 training
+  frames, computed by our own code.
+
+Same metric and the same scale, but different sets and different label
+distributions, so read a leaderboard-against-validation comparison as
+indicative rather than exact.
+
+The v4 and v5 runs have **no local IoU at all**. By then the target was
+decomposed and the training loss was a weighted sum over five outputs, so
+validation tracked side and direction accuracy and never reassembled boxes to
+score them. That is a genuine gap in the record: the v2-to-v4 improvement is
+only visible on the leaderboard, and the local metric that made the v1/v2
+diagnosis so clear was dropped exactly when it would have been most useful for
+attributing the gain.
 
 ## The progression
 
