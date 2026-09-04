@@ -32,6 +32,7 @@ from shadow_detection.data import (
     stratification_labels,
 )
 from shadow_detection.features import NUM_FEATURES
+from shadow_detection.geometry import FrameSize, iou, reconstruct
 from shadow_detection.model import ShadowNet
 
 
@@ -157,6 +158,7 @@ def train_one_seed(
         "val_loss": [],
         "val_side_acc": [],
         "val_direction_acc": [],
+        "val_mean_iou": [],
     }
     best_val_loss = float("inf")
     best_epoch: int | None = None
@@ -210,12 +212,13 @@ def train_one_seed(
             )
             continue
 
-        val_loss, side_acc, direction_acc = _evaluate(
-            model, val_loader, cfg, device, use_amp, cross_entropy, smooth_l1
+        val_loss, side_acc, direction_acc, mean_iou = _evaluate(
+            model, val_loader, cfg, device, use_amp, cross_entropy, smooth_l1, target_stats
         )
         history["val_loss"].append(val_loss)
         history["val_side_acc"].append(side_acc)
         history["val_direction_acc"].append(direction_acc)
+        history["val_mean_iou"].append(mean_iou)
         # Only ReduceLROnPlateau consumes a metric. Handing a loss to a cosine
         # schedule would be read as an epoch index, which silently jumps the
         # learning rate to wherever that "epoch" falls on the curve.
@@ -234,8 +237,8 @@ def train_one_seed(
 
         if epoch % 5 == 0 or improved:
             print(
-                f"  ep {epoch:3d} | train {train_loss:.4f} val {val_loss:.4f} "
-                f"| side {side_acc:.3f} dir {direction_acc:.3f}"
+                f"  ep {epoch + 1:3d}/{cfg.epochs} | train {train_loss:.4f} val {val_loss:.4f} "
+                f"| IoU {mean_iou:.4f} | side {side_acc:.3f} dir {direction_acc:.3f}"
                 f"{' *best*' if improved else ''}"
             )
 
@@ -267,21 +270,79 @@ def _evaluate(
     use_amp: bool,
     cross_entropy: nn.Module,
     smooth_l1: nn.Module,
-) -> tuple[float, float, float]:
+    target_stats: TargetStats,
+) -> tuple[float, float, float, float]:
+    """Returns ``(loss, side accuracy, direction accuracy, mean IoU)``.
+
+    Mean IoU is the point of this function. The training loss is a weighted sum
+    over five outputs, which is fine for optimisation and useless for judging
+    the model -- and the hackathon runs reported only the loss and the two
+    accuracies, so the decomposed architecture never got a local IoU at all.
+    That left the whole v2-to-v4 improvement visible only on a leaderboard.
+    Reassembling the boxes here costs nothing and makes the number directly
+    comparable to the 0.4675 the direct-regression model managed and the 0.4295
+    of predicting the per-edge mean.
+    """
     model.eval()
     total_loss, seen, side_correct, direction_correct = 0.0, 0, 0, 0
+    iou_total = 0.0
+
     for raw_batch in loader:
         batch = _to_device(raw_batch, device)
         with torch.amp.autocast("cuda", enabled=use_amp):
             outputs = model(batch["image"], batch["features"])
             loss = _loss_fn(cfg, outputs, batch, cross_entropy, smooth_l1)
-        side_logits, _, direction_logits = outputs
+        side_logits, regression, direction_logits = outputs
         count = batch["image"].size(0)
+
         total_loss += loss.item() * count
         side_correct += (side_logits.argmax(1) == batch["side"]).sum().item()
         direction_correct += (direction_logits.argmax(1) == batch["direction"]).sum().item()
+        iou_total += _batch_iou(
+            predicted_sides=side_logits.argmax(1).cpu().numpy(),
+            predicted_regression=regression.float().cpu().numpy(),
+            true_sides=batch["side"].cpu().numpy(),
+            true_regression=batch["regression"].float().cpu().numpy(),
+            target_stats=target_stats,
+            frame=cfg.frame,
+        )
         seen += count
-    return total_loss / seen, side_correct / seen, direction_correct / seen
+
+    return (
+        total_loss / seen,
+        side_correct / seen,
+        direction_correct / seen,
+        iou_total / seen,
+    )
+
+
+def _batch_iou(
+    predicted_sides: np.ndarray,
+    predicted_regression: np.ndarray,
+    true_sides: np.ndarray,
+    true_regression: np.ndarray,
+    target_stats: TargetStats,
+    frame: FrameSize,
+) -> float:
+    """Sum of per-sample IoU over a batch.
+
+    Both boxes are reconstructed through the same standardisation, so this is
+    the metric the challenge scored rather than a proxy for it.
+    """
+    total = 0.0
+    for i in range(len(predicted_sides)):
+        predicted = reconstruct(
+            side=int(predicted_sides[i]),
+            frame=frame,
+            **target_stats.denormalize_vector(predicted_regression[i]),
+        )
+        truth = reconstruct(
+            side=int(true_sides[i]),
+            frame=frame,
+            **target_stats.denormalize_vector(true_regression[i]),
+        )
+        total += iou(predicted, truth)
+    return total
 
 
 def train(

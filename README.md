@@ -23,7 +23,8 @@ they are walking into frame.
 | | Test IoU | Local validation |
 | --- | --- | --- |
 | Predict the average box per side | — | 0.4295 mean IoU |
-| Direct box regression, fully tuned | not recorded | 0.4675 mean IoU |
+| Direct box regression, fully tuned, 120 epochs | not recorded | 0.4675 mean IoU |
+| Decomposed targets, **3 epochs** | — | **0.5447 mean IoU** |
 | Decomposed targets, native resolution | 0.614 | side accuracy **1.000** |
 | **Decomposed targets, 3-seed ensemble** | **0.626** | — |
 
@@ -53,6 +54,13 @@ ResNet-50, aspect-preserving input, GIoU loss, frozen-then-unfrozen trunk,
 photometric augmentation, TTA — that approach reached 0.4675 mean IoU against a
 0.4295 baseline of *predicting the average box*. All that machinery bought
 0.038.
+
+The decomposed version clears that entire effort in **three epochs and 78
+seconds** — 0.5447 mean IoU on the same kind of held-out split — and is still
+climbing steeply when the run stops. That comparison is
+[measured, not asserted](docs/experiments.md#filling-in-the-missing-comparison);
+the hackathon runs never computed a local IoU for the decomposed model, so it
+is new here.
 
 So describe the box relative to the edge it hides behind instead:
 
@@ -84,7 +92,7 @@ Full write-up: [`docs/method.md`](docs/method.md).
 git clone https://github.com/alex-krasnoshtanov/Detection-by-Shadow
 cd Detection-by-Shadow
 uv sync --extra dev          # or: pip install -e ".[dev]"
-pytest                       # 193 tests, no dataset or GPU needed
+pytest                       # 196 tests, no dataset or GPU needed
 ```
 
 ### Try it in a browser
@@ -190,7 +198,7 @@ docs/            method, experiment log, dataset description, demo
 notebooks/       the five as-run hackathon notebooks, outputs preserved
 explorations/    a classical + SAM3 pipeline, tried and dropped
 results/         the submission CSVs that survive locally
-tests/           193 tests, including a CPU train→predict→blend round trip
+tests/           196 tests, including a CPU train→predict→blend round trip
 ```
 
 The notebooks are archives, not the interface — they carry the training logs

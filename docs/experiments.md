@@ -20,13 +20,16 @@ Same metric and the same scale, but different sets and different label
 distributions, so read a leaderboard-against-validation comparison as
 indicative rather than exact.
 
-The v4 and v5 runs have **no local IoU at all**. By then the target was
-decomposed and the training loss was a weighted sum over five outputs, so
-validation tracked side and direction accuracy and never reassembled boxes to
-score them. That is a genuine gap in the record: the v2-to-v4 improvement is
-only visible on the leaderboard, and the local metric that made the v1/v2
-diagnosis so clear was dropped exactly when it would have been most useful for
+The v4 and v5 runs, as run in 2026, had **no local IoU at all**. By then the
+target was decomposed and the training loss was a weighted sum over five
+outputs, so validation tracked side and direction accuracy and never
+reassembled boxes to score them. The local metric that made the v1/v2 diagnosis
+so clear was dropped exactly when it would have been most useful for
 attributing the gain.
+
+The rewrite closes that gap: `_evaluate` now reconstructs both the predicted
+and the true box through the same standardisation and reports mean IoU every
+epoch. See [Filling in the missing comparison](#filling-in-the-missing-comparison).
 
 ## The progression
 
@@ -234,6 +237,36 @@ shadow-detection predict \
   --native-resolution \
   --output runs/submission_v4.csv
 ```
+
+## Filling in the missing comparison
+
+The single number the hackathon never produced: what the decomposed model
+scores on a held-out split, under the same metric that judged the direct
+regression at 0.4675. A three-epoch run on the restored dataset, on an
+RTX 5070, batch 64, 15% stratified holdout of 254 frames:
+
+| Epoch | Train loss | Val loss | **Val mean IoU** | Side acc | Dir acc |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 2.4022 | 3.9609 | 0.4513 | 0.969 | 0.476 |
+| 2 | 1.7755 | 2.9800 | 0.4817 | 0.965 | 0.457 |
+| 3 | 1.6237 | 1.5186 | **0.5447** | 0.984 | 0.500 |
+
+Against the two reference points:
+
+| | Mean IoU | Cost |
+| --- | --- | --- |
+| Per-edge mean box | 0.4295 | none |
+| v2, direct regression, fully tuned | 0.4675 | 120 epochs |
+| **Decomposed targets, 3 epochs** | **0.5447** | **78 seconds** |
+
+The decomposed model clears the entire v2 effort — ResNet-50, GIoU, TTA,
+aspect-preserving input, freeze/unfreeze — inside three epochs and 78 seconds,
+and it is still improving steeply when the run stops. This is the evidence the
+original write-up was missing, and it says plainly that the reparameterisation
+did the work rather than any of the machinery bolted around it.
+
+Two caveats. It is one seed on one split, not a sweep. And direction sits at
+0.50 exactly as it always has.
 
 ### Batch size is the one setting you may have to change
 

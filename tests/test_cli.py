@@ -439,3 +439,95 @@ class TestExport:
             ]
         )
         assert "no target_stats.json" in capsys.readouterr().out
+
+
+def test_validation_reports_mean_iou(tiny_dataset, tmp_path):
+    """The metric the challenge actually scored, which the hackathon runs never
+    computed for the decomposed model -- leaving its improvement over direct
+    regression visible only on a leaderboard measured differently.
+
+    Both boxes are reconstructed through the same standardisation, so a
+    perfect prediction must score exactly 1.0 rather than approximately.
+    """
+    from dataclasses import replace
+
+    from shadow_detection.config import ENSEMBLE_PRESET
+    from shadow_detection.data import build_samples
+    from shadow_detection.train import train
+
+    cfg = replace(
+        ENSEMBLE_PRESET,
+        output_dir=tmp_path / "iou",
+        input_size=(64, 64),
+        batch_size=2,
+        epochs=1,
+        num_workers=0,
+        seeds=(1,),
+        val_split=0.5,
+        scheduler="cosine",
+    )
+    samples = build_samples(tiny_dataset, cfg.frame, progress=False)
+    results = train(cfg, samples, device=torch.device("cpu"))
+
+    scores = results[0].history["val_mean_iou"]
+    assert len(scores) == 1
+    # An untrained model scores badly but must produce a valid IoU.
+    assert 0.0 <= scores[0] <= 1.0
+
+
+def test_perfect_predictions_score_iou_one():
+    """Pins the reconstruction path inside the metric: if predictions and truth
+    are identical, the score is exactly 1, whatever the standardisation."""
+    import numpy as np
+
+    from shadow_detection.data import TargetStats
+    from shadow_detection.geometry import REGRESSION_TARGETS, FrameSize
+    from shadow_detection.train import _batch_iou
+
+    stats = TargetStats(
+        {
+            "distance_from_edge": (208.58, 45.16),
+            "bbox_width": (80.85, 29.86),
+            "bbox_height": (172.90, 34.67),
+            "y_center": (309.33, 14.27),
+        }
+    )
+    assert set(stats.stats) == set(REGRESSION_TARGETS)
+
+    regression = np.array([[0.4, -0.2, 0.7, 0.1], [-1.1, 0.3, -0.5, 0.0]], dtype=np.float32)
+    sides = np.array([0, 1])
+
+    total = _batch_iou(
+        predicted_sides=sides,
+        predicted_regression=regression,
+        true_sides=sides,
+        true_regression=regression,
+        target_stats=stats,
+        frame=FrameSize(720, 480),
+    )
+    assert total == pytest.approx(2.0)
+
+
+def test_a_wrong_side_scores_zero_iou():
+    """A box behind the wrong edge cannot overlap the truth at all, which is
+    why side accuracy saturating at 100% matters so much to the final score."""
+    import numpy as np
+
+    from shadow_detection.data import TargetStats
+    from shadow_detection.geometry import FrameSize
+    from shadow_detection.train import _batch_iou
+
+    stats = TargetStats(
+        {k: (0.0, 1.0) for k in ("distance_from_edge", "bbox_width", "bbox_height", "y_center")}
+    )
+    regression = np.array([[200.0, 80.0, 190.0, 300.0]], dtype=np.float32)
+
+    total = _batch_iou(
+        predicted_sides=np.array([1]),
+        predicted_regression=regression,
+        true_sides=np.array([0]),
+        true_regression=regression,
+        target_stats=stats,
+        frame=FrameSize(720, 480),
+    )
+    assert total == pytest.approx(0.0)
