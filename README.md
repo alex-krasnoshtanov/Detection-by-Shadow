@@ -20,12 +20,12 @@ they are walking into frame.
 
 ## Result
 
-| | Held-out IoU | Note |
+| | Mean IoU | Measured on |
 | --- | --- | --- |
-| Predict the average box per side | 0.4295 | the floor |
-| Direct box regression, fully tuned, 120 epochs | 0.4675 | +0.038 for a lot of machinery |
-| **Decomposed targets, 40 epochs** | **0.6096** | reproduced here, 254 held-out frames |
-| Decomposed targets, 3-seed ensemble | **0.626** | the winning leaderboard score |
+| Predict the average box per side | 0.4295 | 254-frame holdout — the floor |
+| Direct box regression, fully tuned, 120 epochs | 0.4675 | 203-frame holdout, 2026 |
+| **Decomposed targets, 40 epochs + TTA** | **0.6096** | 254-frame holdout, reproduced here |
+| Decomposed targets, 3-seed ensemble | 0.626 | *the organisers' hidden test set* |
 
 Side classification is **254/254** on that held-out split. Direction peaks at
 0.606 against a 48.3% base rate and abstains below 0.6 confidence, which on the
