@@ -22,6 +22,11 @@ dist/
 .venv/
 venv/
 
+# uv resolves torch differently per platform (CPU wheels on the CI runner,
+# CUDA locally), so a committed lock would be wrong for half the readers.
+# CI keys its cache on pyproject.toml instead.
+uv.lock
+
 # --- Tooling ----------------------------------------------------------------
 .pytest_cache/
 .ruff_cache/

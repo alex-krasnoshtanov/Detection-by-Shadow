@@ -4,22 +4,25 @@ Drop a road frame in, get the predicted off-frame box drawn on an extended
 canvas. One process: FastAPI serves the JSON API and the page.
 
 ```bash
-pip install -e ".[demo]"
-uvicorn shadow_detection.demo.app:app --port 8000
+uv run --extra demo uvicorn shadow_detection.demo.app:app --port 8000
 # open http://localhost:8000
 ```
 
-The model is not in git — it is ~95 MB of binary that would weigh on every
-clone. It is fetched from a GitHub release on first start and cached, so the
-second start is instant and works offline.
+With pip, that is `pip install -e ".[demo]"` followed by the same `uvicorn`
+line. On a machine with no GPU, put `UV_TORCH_BACKEND=cpu` in front of the sync
+to get the CPU torch wheel and save about 2 GB.
+
+The model is not in git. It is 93 MB of binary that would weigh on every clone,
+so it is fetched from a GitHub release on first start and cached; later starts
+are instant and work offline.
 
 ## Why one service and not two
 
-An API plus a separate single-page app is the conventional split, and it is the
-wrong trade here. The entire value of a demo is that someone can clone the
-repository, run one command and see a prediction. A second toolchain to install,
-a second port to configure and a CORS policy to get wrong all work against
-that. The page is plain HTML, CSS and JavaScript served as static files: no
+An API plus a separate single-page app is the conventional split, and it buys
+nothing here. The entire value of a demo is that someone can clone the
+repository, run one command and see a prediction. A second toolchain to
+install, a second port to configure and a CORS policy to get wrong all work
+against that. The page is plain HTML, CSS and JavaScript served as static files: no
 build step, no `node_modules`, and the container is one Python image.
 
 ## The drawing problem
@@ -47,8 +50,8 @@ out; skip that and the box lands wrong by exactly the scale factor.
 Pointing the demo at a model you just trained, without publishing anything:
 
 ```bash
-shadow-detection export runs/v5-ensemble/model_seed42.pt -o local/model.pt
-SHADOW_MODEL_DIR=local uvicorn shadow_detection.demo.app:app --port 8000
+uv run shadow-detection export runs/v5-ensemble/model_seed42.pt -o local/model.pt
+SHADOW_MODEL_DIR=local uv run --extra demo uvicorn shadow_detection.demo.app:app --port 8000
 ```
 
 `export` copies `target_stats.json` next to the traced model, because a trace
@@ -61,7 +64,7 @@ the loader above expects, and prints the digest to pin and the `gh` command to
 publish it:
 
 ```bash
-python scripts/package_release.py runs/v5-ensemble/model_seed42.pt
+uv run python scripts/package_release.py runs/v5-ensemble/model_seed42.pt
 ```
 
 It refuses to run without the run's `target_stats.json`, since an archive
@@ -120,5 +123,4 @@ pulled the image.
 
 The upload cap is 12 MB and 40 megapixels, both rejected before decoding.
 Uploads are held in memory, never written to disk. There is no rate limiting and
-no authentication: this is a demo meant to run locally or behind something that
-does, not an open internet service.
+no authentication. Run it locally, or behind something that provides both.
