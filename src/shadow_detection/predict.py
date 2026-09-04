@@ -81,6 +81,53 @@ def _build_transform(input_size: tuple[int, int] | None) -> transforms.Compose:
 
 
 @torch.no_grad()
+def _forward_batch(
+    model: ShadowNet,
+    images: Sequence[Image.Image],
+    transform: transforms.Compose,
+    device: torch.device,
+    use_amp: bool,
+    tta: bool,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """One forward pass (two, with TTA) over a batch of PIL images.
+
+    The single place the model is actually called, so the directory-driven and
+    in-memory entry points cannot drift apart numerically.
+
+    Note that the hand-crafted features come from the image at its **native
+    resolution**, before the resize -- they measure pixel geometry, and
+    squashing a 3:2 frame to 1:1 first would change every position and density
+    among them. Training did it this way, so inference must too.
+    """
+    features = [extract_features(np.array(image)) for image in images]
+    image_batch = torch.stack([transform(image) for image in images]).to(device)
+    feature_batch = torch.from_numpy(np.stack(features)).float().to(device)
+
+    with torch.amp.autocast("cuda", enabled=use_amp):
+        side_logits, regression, direction_logits = model(image_batch, feature_batch)
+    side_probs = F.softmax(side_logits.float(), dim=1).cpu().numpy()
+    direction_probs = F.softmax(direction_logits.float(), dim=1).cpu().numpy()
+    regression_np = regression.float().cpu().numpy()
+
+    if tta:
+        flipped_images = torch.flip(image_batch, dims=[3])
+        flipped_features = (
+            torch.from_numpy(np.stack([mirror_features(f) for f in features])).float().to(device)
+        )
+        with torch.amp.autocast("cuda", enabled=use_amp):
+            f_side, f_regression, f_direction = model(flipped_images, flipped_features)
+        # The four regressed quantities are flip-invariant, so they average
+        # directly. The two classifiers predicted a mirrored world, so their
+        # class order has to be reversed before averaging.
+        regression_np = (regression_np + f_regression.float().cpu().numpy()) / 2.0
+        side_probs = (side_probs + F.softmax(f_side.float(), dim=1).cpu().numpy()[:, ::-1]) / 2.0
+        direction_probs = (
+            direction_probs + F.softmax(f_direction.float(), dim=1).cpu().numpy()[:, ::-1]
+        ) / 2.0
+
+    return regression_np, side_probs, direction_probs
+
+
 def predict_with_model(
     model: ShadowNet,
     ids: Sequence[str],
@@ -94,7 +141,9 @@ def predict_with_model(
 
     Images are batched rather than fed one at a time. That is safe because the
     model is in eval mode, so batch norm uses its running statistics and the
-    result is independent of how the images are grouped.
+    result is independent of how the images are grouped. Files are opened one
+    chunk at a time rather than all at once, so a 400-image test set does not
+    have to fit in memory as decoded bitmaps.
     """
     device = torch.device(device)
     model = model.to(device).eval()
@@ -104,49 +153,59 @@ def predict_with_model(
     predictions: list[RawPrediction] = []
     for start in range(0, len(ids), batch_size):
         chunk = ids[start : start + batch_size]
-        images, features = [], []
-        for name in chunk:
-            image = _open_test_image(test_dir, name)
-            features.append(extract_features(np.array(image)))
-            images.append(transform(image))
-
-        image_batch = torch.stack(images).to(device)
-        feature_batch = torch.from_numpy(np.stack(features)).float().to(device)
-
-        with torch.amp.autocast("cuda", enabled=use_amp):
-            side_logits, regression, direction_logits = model(image_batch, feature_batch)
-        side_probs = F.softmax(side_logits.float(), dim=1).cpu().numpy()
-        direction_probs = F.softmax(direction_logits.float(), dim=1).cpu().numpy()
-        regression_np = regression.float().cpu().numpy()
-
-        if tta:
-            flipped_images = torch.flip(image_batch, dims=[3])
-            flipped_features = (
-                torch.from_numpy(np.stack([mirror_features(f) for f in features]))
-                .float()
-                .to(device)
-            )
-            with torch.amp.autocast("cuda", enabled=use_amp):
-                f_side, f_regression, f_direction = model(flipped_images, flipped_features)
-            # The four regressed quantities are flip-invariant, so they average
-            # directly. The two classifiers predicted a mirrored world, so their
-            # class order has to be reversed before averaging.
-            regression_np = (regression_np + f_regression.float().cpu().numpy()) / 2.0
-            side_probs = (
-                side_probs + F.softmax(f_side.float(), dim=1).cpu().numpy()[:, ::-1]
-            ) / 2.0
-            direction_probs = (
-                direction_probs + F.softmax(f_direction.float(), dim=1).cpu().numpy()[:, ::-1]
-            ) / 2.0
-
+        images = [_open_test_image(test_dir, name) for name in chunk]
+        regression, side_probs, direction_probs = _forward_batch(
+            model, images, transform, device, use_amp, tta
+        )
         predictions.extend(
             RawPrediction(
                 name=name,
-                regression=regression_np[i],
+                regression=regression[i],
                 side_probs=side_probs[i],
                 direction_probs=direction_probs[i],
             )
             for i, name in enumerate(chunk)
+        )
+
+    return predictions
+
+
+def predict_images(
+    model: ShadowNet,
+    images: Sequence[Image.Image],
+    names: Sequence[str] | None = None,
+    input_size: tuple[int, int] | None = (384, 384),
+    device: torch.device | str = "cpu",
+    tta: bool = True,
+    batch_size: int = 32,
+) -> list[RawPrediction]:
+    """Predict on images already in memory, for a server or a notebook.
+
+    Identical arithmetic to :func:`predict_with_model`; the only difference is
+    where the pixels came from.
+    """
+    device = torch.device(device)
+    model = model.to(device).eval()
+    transform = _build_transform(input_size)
+    use_amp = device.type == "cuda"
+    labels = list(names) if names is not None else [f"image_{i}" for i in range(len(images))]
+    if len(labels) != len(images):
+        raise ValueError(f"got {len(images)} images but {len(labels)} names")
+
+    predictions: list[RawPrediction] = []
+    for start in range(0, len(images), batch_size):
+        chunk = [image.convert("RGB") for image in images[start : start + batch_size]]
+        regression, side_probs, direction_probs = _forward_batch(
+            model, chunk, transform, device, use_amp, tta
+        )
+        predictions.extend(
+            RawPrediction(
+                name=labels[start + i],
+                regression=regression[i],
+                side_probs=side_probs[i],
+                direction_probs=direction_probs[i],
+            )
+            for i in range(len(chunk))
         )
 
     return predictions

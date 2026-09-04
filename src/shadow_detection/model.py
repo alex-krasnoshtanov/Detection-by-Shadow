@@ -45,7 +45,7 @@ class ShadowNet(nn.Module):
             train an image-only ablation.
         dropout: applied in the shared projection and in each head.
         pretrained: load ImageNet weights for the trunk. Always ``True`` for
-            real runs -- with 1693 training images, training a ResNet-50 from
+            real runs -- with 1692 training images, training a ResNet-50 from
             scratch is hopeless -- and ``False`` in tests so they need no
             network access.
     """

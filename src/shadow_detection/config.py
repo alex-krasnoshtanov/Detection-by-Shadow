@@ -15,7 +15,7 @@ from typing import Literal
 
 from shadow_detection.geometry import FrameSize
 
-#: Per-channel mean of the challenge training images. Measured on the 1693
+#: Per-channel mean of the challenge training images. Measured on the 1692
 #: training frames rather than reused from ImageNet, because these are all
 #: overhead-lit road scenes and noticeably darker and flatter than ImageNet.
 CHANNEL_MEAN: tuple[float, float, float] = (0.422, 0.413, 0.394)
@@ -114,7 +114,7 @@ FULL_RES_PRESET = TrainConfig(
     seeds=(42,),
 )
 
-#: The v5 run: 384x384, all 1693 samples, three seeds averaged. Best result.
+#: The v5 run: 384x384, all 1692 samples, three seeds averaged. Best result.
 ENSEMBLE_PRESET = TrainConfig(
     output_dir=Path("runs/v5-ensemble"),
     input_size=(384, 384),

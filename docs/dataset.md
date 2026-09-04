@@ -1,11 +1,12 @@
 # The dataset
 
-The data comes from the DEMCON challenge at BrabantHack 2026 and is **not
-redistributed here**. It is not ours to license, and the repository's
-`.gitignore` excludes `data/` so it cannot be committed by accident. The only
-frames that appear are illustrative: a handful inside the EDA notebook's saved
-plots, and the eight rendered into
-[`assets/predictions.png`](../assets/predictions.png).
+The data comes from the DEMCON challenge at BrabantHack 2026 and is
+**MIT-licensed**, so the sample frames in the EDA notebook's saved plots and in
+[`assets/predictions.png`](../assets/predictions.png) are here legitimately.
+
+The full set is still not vendored: it is about 1 GB, which has no business in a
+git history when it can be re-downloaded. `.gitignore` excludes `data/` so it
+cannot be committed by accident.
 
 Everything below was measured on the training split during the hackathon; the
 numbers are reproduced in [`01_eda.ipynb`](../notebooks/01_eda.ipynb).
@@ -17,7 +18,7 @@ data/
 ├── train_data/train_data/
 │   ├── image_0.png          720 x 480, RGB
 │   ├── image_0.json         annotation, stem matches the image
-│   └── ...                  1693 pairs
+│   └── ...                  1692 pairs
 ├── test_data/test_data/
 │   ├── image_1.png
 │   └── ...                  414 images, no annotations
@@ -45,7 +46,7 @@ to `--train-dir`.
 ```
 
 All four corners are stored even though every box is axis-aligned (checked
-across all 1693 annotations), so half the coordinates are redundant.
+across all 1692 annotations), so half the coordinates are redundant.
 `load_annotation` collapses them by taking extremes rather than trusting
 `top_left` to be the minimum corner — cheap insurance against a corner-order
 surprise silently producing a negative-width box.
@@ -56,7 +57,7 @@ Note the negative x coordinates. That is the whole problem.
 
 | Property | Value |
 | --- | --- |
-| Frames | 1693 train, 414 test |
+| Frames | 1692 train, 414 test |
 | Resolution | 720 x 480, constant |
 | Boxes axis-aligned | all of them |
 | Person behind the left edge | 852 (50.4%) |
@@ -64,6 +65,12 @@ Note the negative x coordinates. That is the whole problem.
 | Walking into frame | 48.3% |
 | Mean box size, normalised | 0.112 W x 0.360 H |
 | Mean aspect ratio (h/w) | 2.4 |
+
+> The v4 and v5 training logs in `notebooks/` print **1693** samples, not 1692.
+> The Kaggle distribution contains 1692 annotated frames, which is what the EDA
+> and this loader both count; the GPU server's copy evidently carried one extra
+> annotation file. Nothing downstream depends on the exact count, but the
+> discrepancy is real and the notebooks are preserved as run.
 
 Four findings drove every later decision:
 

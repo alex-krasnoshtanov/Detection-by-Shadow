@@ -1,7 +1,7 @@
 """The target reparameterisation that made this problem tractable.
 
 Ground truth is an axis-aligned box for a person who is *entirely outside* the
-frame: every one of the 1693 training boxes lies fully to the left of x=0 or
+frame: every one of the 1692 training boxes lies fully to the left of x=0 or
 fully to the right of x=720. Regressing ``(xmin, ymin, xmax, ymax)`` directly
 means asking a network to emit coordinates outside the image it is looking at,
 on a scale it has no anchor for -- which is exactly what the first two

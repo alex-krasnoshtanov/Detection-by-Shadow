@@ -6,7 +6,7 @@ from, all of them lessons from running out of time during the hackathon:
 1. :class:`TargetStats` is saved to disk. The original computed the target
    mean/std from whatever data was loaded and never persisted it, which made a
    checkpoint useless without also re-reading the full training set.
-2. The hand-crafted features can be cached. Computing them for 1693 images
+2. The hand-crafted features can be cached. Computing them for 1692 images
    takes about 100 seconds, which was paid on every single run.
 3. The flip augmentation calls :func:`~shadow_detection.features.mirror_features`
    rather than open-coding the index juggling, which the notebooks did in three

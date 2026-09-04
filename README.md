@@ -4,6 +4,7 @@
 shadow they cast into it.**
 
 [![CI](https://github.com/alex-krasnoshtanov/Detection-by-Shadow/actions/workflows/ci.yml/badge.svg)](https://github.com/alex-krasnoshtanov/Detection-by-Shadow/actions/workflows/ci.yml)
+[![Container](https://github.com/alex-krasnoshtanov/Detection-by-Shadow/actions/workflows/docker.yml/badge.svg)](https://github.com/alex-krasnoshtanov/Detection-by-Shadow/actions/workflows/docker.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -41,7 +42,7 @@ makes the task odd and the reparameterisation necessary. These eight frames are
 *training* frames — they are the ones with published ground truth — so the
 0.782 there measures whether this implementation agrees with the code that
 produced the weights, not held-out accuracy. Reproduce it with
-[`shadow-detection predict`](#run-it-on-the-released-weights).
+[`shadow-detection predict`](#or-from-the-command-line-on-the-released-weights).
 
 ## The one idea that mattered
 
@@ -83,18 +84,43 @@ Full write-up: [`docs/method.md`](docs/method.md).
 git clone https://github.com/alex-krasnoshtanov/Detection-by-Shadow
 cd Detection-by-Shadow
 uv sync --extra dev          # or: pip install -e ".[dev]"
-pytest                       # 167 tests, no dataset or GPU needed
+pytest                       # 193 tests, no dataset or GPU needed
 ```
 
-The dataset is not redistributed — it belongs to the challenge organisers. See
-[`docs/dataset.md`](docs/dataset.md) for the layout the loader expects. With it
-in place, the best result reproduces in about half an hour on one modern GPU:
+### Try it in a browser
+
+The lowest-friction way in: no dataset, no GPU, no training.
+
+```bash
+pip install -e ".[demo]"
+uvicorn shadow_detection.demo.app:app --port 8000     # then open localhost:8000
+```
+
+Or without cloning anything:
+
+```bash
+docker run --rm -p 8000:8000 -v shadow-models:/models \
+  ghcr.io/alex-krasnoshtanov/detection-by-shadow:latest
+```
+
+Drop in a road frame and the predicted box is drawn on a canvas extended past
+the image, because the box lies outside the picture. The model is pulled from
+the release on first start and cached, so nothing large sits in git and the
+second start is instant. One process serves both the API and the page -- no
+Node, no build step. Details in [`docs/demo.md`](docs/demo.md).
+
+The dataset is MIT-licensed but not vendored here — it is about 1 GB, which has
+no business in a git history. See [`docs/dataset.md`](docs/dataset.md) for the
+layout the loader expects. With it in place, the best result reproduces in about
+40 minutes on one modern GPU:
 
 ```bash
 shadow-detection train \
   --train-dir data/train_data/train_data \
   --preset ensemble \
-  --output-dir runs/v5-ensemble
+  --output-dir runs/v5-ensemble \
+  --batch-size 64 \
+  --features-cache runs/features.npz
 
 shadow-detection predict \
   --test-dir data/test_data/test_data \
@@ -103,10 +129,9 @@ shadow-detection predict \
   --output runs/submission.csv
 ```
 
-### Run it on the released weights
+### Or from the command line, on the released weights
 
-No dataset and no GPU needed. The team's trained model is published from
-Filipp's repository as a TorchScript archive; `predict` takes it directly.
+Same weights, batch inference straight to a submission CSV.
 
 ```bash
 gh release download v1.0.0 --repo filipp-lotsmanov/shadow-detection
@@ -141,6 +166,11 @@ weighted-averages finished submissions. `export` traces a checkpoint to
 TorchScript, together with the stats file it is useless without, for a
 deployment that should not have to install this package.
 
+`--batch-size 64` above because the preset's 128 was set on a 48 GB card. On
+12 GB, 96 and higher spill into host memory and cost 11x; 64 holds full
+throughput at 8.8 GB. Measurements in
+[`docs/experiments.md`](docs/experiments.md#batch-size-is-the-one-setting-you-may-have-to-change).
+
 ## Layout
 
 ```
@@ -153,12 +183,14 @@ src/shadow_detection/
   predict.py     flip TTA, seed ensembling, submission guard rails
   blend.py       weighted blending of finished submissions
   cli.py         shadow-detection {train,predict,blend,export,features}
+  demo/          FastAPI app + static page, weights pulled from a release
 
-docs/            method, experiment log, dataset description
+Dockerfile       CPU-only image, published to GHCR by CD
+docs/            method, experiment log, dataset description, demo
 notebooks/       the five as-run hackathon notebooks, outputs preserved
 explorations/    a classical + SAM3 pipeline, tried and dropped
 results/         the submission CSVs that survive locally
-tests/           167 tests, including a CPU train→predict→blend round trip
+tests/           193 tests, including a CPU train→predict→blend round trip
 ```
 
 The notebooks are archives, not the interface — they carry the training logs
@@ -174,7 +206,7 @@ The results flatter the method, and it is worth saying how:
 - **The frames are synthetic renders** — consistent lighting, clean shadows, no
   occlusion or clutter. Side classification hitting 100% says more about how
   legible a raytraced shadow is than about real dashcam footage.
-- **1693 training images.** Enough to overfit a 25M-parameter model within
+- **1692 training images.** Enough to overfit a 25M-parameter model within
   25 epochs, and not enough to learn walking direction at all.
 - **Direction was never learnable.** Two architectures, two training regimes,
   both at chance against a 48.3% base rate. The submissions abstain — the

@@ -48,6 +48,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     train_parser.add_argument("--num-workers", type=int, help="dataloader workers")
     train_parser.add_argument(
+        "--lr",
+        type=float,
+        help="head learning rate; the preset value assumes the preset batch size",
+    )
+    train_parser.add_argument("--backbone-lr", type=float, help="trunk learning rate")
+    train_parser.add_argument(
         "--features-cache",
         type=Path,
         help="npz file to cache the hand-crafted features in (saves ~100s per run)",
@@ -166,6 +172,10 @@ def _resolve_train_config(args: argparse.Namespace) -> TrainConfig:
         overrides["batch_size"] = args.batch_size
     if args.num_workers is not None:
         overrides["num_workers"] = args.num_workers
+    if args.lr:
+        overrides["lr"] = args.lr
+    if args.backbone_lr:
+        overrides["backbone_lr"] = args.backbone_lr
     if args.val_split is not None:
         overrides["val_split"] = args.val_split
         # A plateau schedule needs validation loss to react to, so dropping the

@@ -13,7 +13,7 @@ Everything below is IoU, but measured on two different sets:
 - **Leaderboard** — the organisers' score over the 414 test images, whose labels
   we never had. This is what the challenge was judged on and where 0.626 comes
   from.
-- **Local validation** — mean IoU over a slice held out of the 1693 training
+- **Local validation** — mean IoU over a slice held out of the 1692 training
   frames, computed by our own code.
 
 Same metric and the same scale, but different sets and different label
@@ -38,7 +38,7 @@ attributing the gain.
 | v2 | ResNet-50, 576x384, GIoU + SmoothL1, freeze/unfreeze, TTA | **0.4675 IoU** | not recorded | [03](../notebooks/03_v2_giou_resnet50.ipynb) |
 | v3 | Decomposed targets @ 384x384 (a teammate's baseline) | — | 0.590 | — |
 | v4 | Decomposed @ native 720x480 + 19 shadow features + TTA | side 1.000, dir 0.547 | 0.614 | [04](../notebooks/04_v4_full_resolution.ipynb) |
-| v5 | Decomposed @ 384x384, all 1693 samples, single seed | — | 0.604 / 0.618 / 0.620 | [05](../notebooks/05_v5_ensemble.ipynb) |
+| v5 | Decomposed @ 384x384, all 1692 samples, single seed | — | 0.604 / 0.618 / 0.620 | [05](../notebooks/05_v5_ensemble.ipynb) |
 | v5-ens | Three seeds averaged + TTA | — | **0.626** | [05](../notebooks/05_v5_ensemble.ipynb) |
 
 Per-seed leaderboard scores for v5: seed 777 → 0.604, seed 42 → 0.618,
@@ -132,12 +132,12 @@ test images. Not a tuning failure; the signal is not in the data at this scale.
 See [method.md](method.md#7-abstaining-on-direction).
 
 Overfitting set in early — training loss fell from 1.07 at epoch 14 to 0.53 at
-epoch 25 while validation loss rose from 1.37 to 2.16. With 1693 images and
+epoch 25 while validation loss rose from 1.37 to 2.16. With 1692 images and
 25M parameters that is expected, and it is what made the next move obvious.
 
 ## v5 — all the data, three times
 
-Two changes, both aimed at the 1693-sample ceiling rather than at the
+Two changes, both aimed at the 1692-sample ceiling rather than at the
 architecture:
 
 **Train on everything.** The 15% validation split was 254 images that could be
@@ -206,7 +206,7 @@ is good advice that does not apply when the *coordinate system* is the problem.
 The dataset is not redistributed; see [dataset.md](dataset.md) for the layout.
 
 ```bash
-# The best result: three seeds on all 1693 samples, ~29 min on one modern GPU
+# The best result: three seeds on all 1692 samples, ~29 min on one modern GPU
 shadow-detection train \
   --train-dir data/train_data/train_data \
   --preset ensemble \
@@ -234,6 +234,28 @@ shadow-detection predict \
   --native-resolution \
   --output runs/submission_v4.csv
 ```
+
+### Batch size is the one setting you may have to change
+
+The published runs used batch 128 on a 48 GB RTX 6000 Ada. Measured on a 12 GB
+RTX 5070, one training step at 384x384 with AMP:
+
+| Batch | Peak allocated | s/step | img/s |
+| --- | --- | --- | --- |
+| 32 | 4.45 GB | 0.134 | 238 |
+| 48 | 6.70 GB | 0.219 | 220 |
+| **64** | **8.78 GB** | **0.272** | **235** |
+| 96 | 12.96 GB | 4.649 | 21 |
+| 128 | 17.13 GB | 14.092 | 9 |
+
+The cliff at 96 is not a gradual slowdown: it is the driver spilling to host
+memory once the working set passes the 12.8 GB of VRAM, and it costs 11x. So on
+a 12 GB card `--batch-size 64` is not a compromise, it is the setting -- it
+holds full throughput at 8.8 GB with headroom. Anything larger is slower than
+anything smaller.
+
+Whole-epoch time on that card at batch 64 is about 20 s including the
+dataloader, so the 40-epoch ensemble is roughly 13 minutes a seed.
 
 Exact numbers will not reproduce bit-for-bit: cuDNN kernel selection and
 `DataLoader` worker ordering are not pinned, so expect the same ballpark rather

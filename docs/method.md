@@ -186,7 +186,7 @@ was right.
 
 Once a validation split was no longer being held out (see
 [experiments.md](experiments.md)), three models were trained from seeds
-42, 123 and 777 on all 1693 samples and averaged. Averaging happens in
+42, 123 and 777 on all 1692 samples and averaged. Averaging happens in
 *decomposed space, before reconstruction*, which matters: if the ensemble
 averaged reconstructed boxes and two members disagreed about the side, the
 result would land in the middle of the frame — where no annotated person ever
@@ -210,7 +210,7 @@ carry. Validation direction accuracy across every run:
 
 Against a 48.3% base rate, both are chance. The shadow tells you where someone
 is standing; it does not reliably tell you which way they are facing, at least
-not at 1693 samples.
+not at 1692 samples.
 
 The submission format accepts `-1` for "no prediction", so the right move is to
 decline. The models emit a direction only when the ensemble's softmax exceeds

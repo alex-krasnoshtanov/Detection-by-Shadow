@@ -27,14 +27,21 @@ dependencies = [
 dev = [
     "pytest>=8.2",
     "ruff>=0.6",
+    "httpx>=0.27",
 ]
 notebooks = [
     "ipykernel>=6.29",
     "matplotlib>=3.9",
 ]
+demo = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+]
 
 [project.scripts]
 shadow-detection = "shadow_detection.cli:main"
+
 
 [project.urls]
 Homepage = "https://github.com/alex-krasnoshtanov/Detection-by-Shadow"

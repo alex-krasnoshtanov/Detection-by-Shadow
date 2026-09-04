@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detection by Shadow</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='13'>🌑</text></svg>">
+</head>
+<body>
+
+<header>
+  <h1>Detection by Shadow</h1>
+  <p class="tagline">
+    Locating a pedestrian who is <em>entirely outside</em> the camera frame,
+    from the shadow they cast into it.
+  </p>
+  <p class="status" id="status" aria-live="polite">checking model…</p>
+</header>
+
+<main>
+  <section class="panel" id="drop" aria-label="Upload a frame">
+    <input type="file" id="file" accept="image/*" hidden>
+    <div class="drop-inner">
+      <p class="drop-title">Drop a road frame here</p>
+      <p class="drop-hint">or <button type="button" class="link" id="browse">choose a file</button></p>
+      <p class="drop-note">
+        Trained on 720×480 renders. Other sizes are scaled, so results degrade.
+      </p>
+    </div>
+  </section>
+
+  <section class="result" id="result" hidden>
+    <div class="canvas-wrap">
+      <canvas id="canvas" role="img" aria-label="Frame with the predicted bounding box"></canvas>
+      <p class="legend">
+        <span class="key pred"></span> predicted position
+        <span class="key frame"></span> camera frame
+      </p>
+    </div>
+
+    <dl class="stats" id="stats"></dl>
+  </section>
+
+  <p class="error" id="error" hidden></p>
+</main>
+
+<footer>
+  <p>
+    <a href="https://github.com/alex-krasnoshtanov/Detection-by-Shadow">source</a> ·
+    <a href="https://github.com/alex-krasnoshtanov/Detection-by-Shadow/blob/main/docs/method.md">method</a> ·
+    <a href="/docs">API</a>
+  </p>
+  <p class="caveat">
+    Direction is reported only above 0.6 confidence and abstains otherwise —
+    the shadow carries little reliable signal about which way someone is walking.
+  </p>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
