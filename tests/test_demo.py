@@ -148,10 +148,22 @@ class TestArchiveExtraction:
         ]
 
     def test_an_archive_missing_a_member_is_reported(self, tmp_path, monkeypatch):
+        import hashlib
+
         archive = self._archive(tmp_path, {"model.pt": "weights"})
         monkeypatch.setenv("SHADOW_MODEL_URL", archive.as_uri())
+        # A digest is pinned in the module for the real release, and it is
+        # checked before extraction, so this fixture has to declare its own.
+        monkeypatch.setenv("SHADOW_MODEL_SHA256", hashlib.sha256(archive.read_bytes()).hexdigest())
         with pytest.raises(weights_module.WeightsUnavailableError, match="did not contain"):
             weights_module.ensure_weights(tmp_path / "out")
+
+    def test_the_pinned_digest_is_a_real_sha256(self):
+        """A truncated or placeholder digest would reject every download."""
+        pinned = weights_module.EXPECTED_SHA256
+        assert pinned is not None, "the release exists, so the digest should be pinned"
+        assert len(pinned) == 64
+        assert all(character in "0123456789abcdef" for character in pinned)
 
     def test_a_checksum_mismatch_is_refused(self, tmp_path, monkeypatch):
         archive = self._archive(tmp_path, {"model.pt": "weights", "target_stats.json": "{}"})

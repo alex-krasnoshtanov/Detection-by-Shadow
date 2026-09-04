@@ -44,6 +44,7 @@ class TrainResult:
     checkpoint: Path
     history: dict[str, list[float]] = field(default_factory=dict)
     best_val_loss: float | None = None
+    best_mean_iou: float | None = None
     best_epoch: int | None = None
     seconds: float = 0.0
 
@@ -161,6 +162,7 @@ def train_one_seed(
         "val_mean_iou": [],
     }
     best_val_loss = float("inf")
+    best_score = -float("inf")  # the selection metric, higher-is-better
     best_epoch: int | None = None
     epochs_without_improvement = 0
     started = time.time()
@@ -176,9 +178,16 @@ def train_one_seed(
         running, seen = 0.0, 0
         batches = tqdm(
             train_loader,
-            desc=f"seed {seed} · epoch {epoch + 1}/{cfg.epochs}",
+            desc=f"seed {seed} ep {epoch + 1}/{cfg.epochs}",
             unit="batch",
             leave=False,
+            # Same stream as the summary prints, so the bar's carriage returns
+            # cannot interleave with them and leave a half-erased bar behind.
+            # Fixed narrow width, because a bar auto-sized to a wide terminal
+            # is unreadable once the scrollback is copied anywhere.
+            file=sys.stdout,
+            ncols=72,
+            dynamic_ncols=False,
             disable=not show_progress,
         )
         for raw_batch in batches:
@@ -227,15 +236,19 @@ def train_one_seed(
         else:
             scheduler.step()
 
-        improved = val_loss < best_val_loss
+        # Track both, but select on one. Loss is still recorded because the
+        # plateau scheduler and the run manifest both want it.
+        best_val_loss = min(best_val_loss, val_loss)
+        score = mean_iou if cfg.select_by == "iou" else -val_loss
+        improved = score > best_score
         if improved:
-            best_val_loss, best_epoch = val_loss, epoch
+            best_score, best_epoch = score, epoch
             epochs_without_improvement = 0
             torch.save(model.state_dict(), checkpoint)
         else:
             epochs_without_improvement += 1
 
-        if epoch % 5 == 0 or improved:
+        if True:  # every epoch: this is the only progress signal there is
             print(
                 f"  ep {epoch + 1:3d}/{cfg.epochs} | train {train_loss:.4f} val {val_loss:.4f} "
                 f"| IoU {mean_iou:.4f} | side {side_acc:.3f} dir {direction_acc:.3f}"
@@ -250,12 +263,19 @@ def train_one_seed(
         torch.save(model.state_dict(), checkpoint)
 
     elapsed = time.time() - started
+    if val_loader is not None and best_epoch is not None:
+        selected = history["val_mean_iou"][best_epoch]
+        print(
+            f"  best by {cfg.select_by}: epoch {best_epoch + 1}, "
+            f"IoU {selected:.4f} (best seen {max(history['val_mean_iou']):.4f})"
+        )
     print(f"  saved {checkpoint} ({elapsed:.0f}s)")
     return TrainResult(
         seed=seed,
         checkpoint=checkpoint,
         history=history,
         best_val_loss=None if val_loader is None else best_val_loss,
+        best_mean_iou=None if val_loader is None else max(history["val_mean_iou"], default=None),
         best_epoch=best_epoch,
         seconds=elapsed,
     )
@@ -375,6 +395,8 @@ def train(
                 "seed": r.seed,
                 "checkpoint": r.checkpoint.name,
                 "best_val_loss": r.best_val_loss,
+                "best_mean_iou": r.best_mean_iou,
+                "selected_by": cfg.select_by,
                 "best_epoch": r.best_epoch,
                 "seconds": round(r.seconds, 1),
                 "history": r.history,

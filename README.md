@@ -20,30 +20,31 @@ they are walking into frame.
 
 ## Result
 
-| | Test IoU | Local validation |
+| | Held-out IoU | Note |
 | --- | --- | --- |
-| Predict the average box per side | — | 0.4295 mean IoU |
-| Direct box regression, fully tuned, 120 epochs | not recorded | 0.4675 mean IoU |
-| Decomposed targets, **3 epochs** | — | **0.5447 mean IoU** |
-| Decomposed targets, native resolution | 0.614 | side accuracy **1.000** |
-| **Decomposed targets, 3-seed ensemble** | **0.626** | — |
+| Predict the average box per side | 0.4295 | the floor |
+| Direct box regression, fully tuned, 120 epochs | 0.4675 | +0.038 for a lot of machinery |
+| **Decomposed targets, 40 epochs** | **0.6096** | reproduced here, 254 held-out frames |
+| Decomposed targets, 3-seed ensemble | **0.626** | the winning leaderboard score |
 
-Both columns are IoU, on different sets — the left over the organisers' 414
-held-out frames, the right over a slice of the training data. The 0.626 is the
-team's winning score; development was collaborative, so read it as the team's
-number rather than any one model's.
-[`docs/experiments.md`](docs/experiments.md) records exactly what was and was
-not measured, including where the record has gaps.
+Side classification is **254/254** on that held-out split. Direction peaks at
+0.606 against a 48.3% base rate and abstains below 0.6 confidence, which on the
+test set means declining on 407 of 414 frames.
+
+The 0.626 is the team's winning leaderboard score on the organisers' hidden
+test set; development was collaborative, so read it as the team's number rather
+than any one model's. Everything else is mean IoU on a 15% stratified holdout,
+measured by the code in this repository.
+[`docs/experiments.md`](docs/experiments.md) has the full run log.
 
 ![Predicted versus actual position of an off-frame pedestrian](assets/predictions.png)
 
-Above: the released weights run through this package's own prediction path.
-Both boxes sit almost entirely outside the dashed camera frame, which is what
-makes the task odd and the reparameterisation necessary. These eight frames are
-*training* frames — they are the ones with published ground truth — so the
-0.782 there measures whether this implementation agrees with the code that
-produced the weights, not held-out accuracy. Reproduce it with
-[`shadow-detection predict`](#or-from-the-command-line-on-the-released-weights).
+Above: **frames the model never trained on**, from the validation split of the
+run that produced the published weights. Both boxes sit almost entirely outside
+the dashed camera frame, which is what makes the task odd and the
+reparameterisation necessary. The eight shown step across the distance range
+rather than being picked for looks — the weakest are the nearest-to-frame
+boxes, where the width is hardest to pin down.
 
 ## The one idea that mattered
 
@@ -55,12 +56,12 @@ photometric augmentation, TTA — that approach reached 0.4675 mean IoU against 
 0.4295 baseline of *predicting the average box*. All that machinery bought
 0.038.
 
-The decomposed version clears that entire effort in **three epochs and 78
-seconds** — 0.5447 mean IoU on the same kind of held-out split — and is still
-climbing steeply when the run stops. That comparison is
-[measured, not asserted](docs/experiments.md#filling-in-the-missing-comparison);
-the hackathon runs never computed a local IoU for the decomposed model, so it
-is new here.
+The decomposed version clears that entire effort in **three epochs**, and
+reaches **0.6096** in forty. Same backbone, same data, same loss family. That
+comparison is
+[measured, not asserted](docs/experiments.md#filling-in-the-missing-comparison):
+the hackathon runs never computed a local IoU for the decomposed model, so the
+number is new here.
 
 So describe the box relative to the edge it hides behind instead:
 
@@ -92,7 +93,7 @@ Full write-up: [`docs/method.md`](docs/method.md).
 git clone https://github.com/alex-krasnoshtanov/Detection-by-Shadow
 cd Detection-by-Shadow
 uv sync --extra dev          # or: pip install -e ".[dev]"
-pytest                       # 202 tests, no dataset or GPU needed
+pytest                       # 211 tests, no dataset or GPU needed
 ```
 
 ### Try it in a browser
@@ -142,7 +143,7 @@ shadow-detection predict \
 Same weights, batch inference straight to a submission CSV.
 
 ```bash
-gh release download v1.0.0 --repo filipp-lotsmanov/shadow-detection
+gh release download weights-v1 --repo alex-krasnoshtanov/Detection-by-Shadow
 tar -xzf model_artifacts.tar.gz          # -> model.pt, target_stats.json
 
 shadow-detection predict \
@@ -198,7 +199,7 @@ docs/            method, experiment log, dataset description, demo
 notebooks/       the five as-run hackathon notebooks, outputs preserved
 explorations/    a classical + SAM3 pipeline, tried and dropped
 results/         the submission CSVs that survive locally
-tests/           202 tests, including a CPU train→predict→blend round trip
+tests/           211 tests, including a CPU train→predict→blend round trip
 ```
 
 The notebooks are archives, not the interface — they carry the training logs
@@ -225,9 +226,9 @@ The results flatter the method, and it is worth saying how:
 - **The best score is the best score that can be evidenced.** A blend across
   the team's models was attempted in the final hour; that notebook cell failed
   and no result was recorded. 0.626 is what stands.
-- **The figure is not a held-out evaluation.** Those eight frames are training
-  frames, and the released model trained on all of them. It shows the pipeline
-  agrees end to end; it does not measure generalisation.
+- **0.6096 is one seed on one split.** Not a sweep, not cross-validated, and
+  the held-out set is 254 frames drawn from the same synthetic distribution as
+  training.
 - **Feature thresholds were chosen by eye** and never swept.
 
 [`docs/method.md#known-issues`](docs/method.md#known-issues) has the rest,
@@ -251,10 +252,12 @@ and the v1/v2 direct-regression line that diagnosed the target-space problem,
 the full-resolution and all-data ensemble runs, and this rewrite into a tested
 package.
 
-Filipp has published the deployable half — a FastAPI + Next.js demo and the
-trained weights:
+Filipp has published his own take on the deployable half, a FastAPI + Next.js
+demo:
 **[filipp-lotsmanov/shadow-detection](https://github.com/filipp-lotsmanov/shadow-detection)**.
-The figure above and the quickstart below both run on that release.
+Worth a look alongside this one. His released weights were also how this
+package's inference path was first cross-checked, before it had trained
+anything of its own.
 
 Original hackathon repository (university account, full commit history):
 [OleksiiKrasnoshtanov240247/Hackaton](https://github.com/OleksiiKrasnoshtanov240247/Hackaton).

@@ -616,3 +616,62 @@ def test_predict_reports_a_missing_checkpoint_before_anything_else(tmp_path, tin
                 "cpu",
             ]
         )
+
+
+class TestCheckpointSelection:
+    """Which epoch's weights end up on disk.
+
+    On a real 40-epoch run the composite validation loss bottomed at epoch 38
+    with IoU 0.6037, while IoU peaked at epoch 40 with 0.6126. Selecting on
+    loss therefore ships the worse model, and the direction term -- which sits
+    at chance throughout -- is a large part of why the loss disagrees.
+    """
+
+    def _run(self, tiny_dataset, tmp_path, select_by):
+        from dataclasses import replace
+
+        from shadow_detection.config import ENSEMBLE_PRESET
+        from shadow_detection.data import build_samples
+        from shadow_detection.train import train
+
+        cfg = replace(
+            ENSEMBLE_PRESET,
+            output_dir=tmp_path / select_by,
+            input_size=(64, 64),
+            batch_size=2,
+            epochs=2,
+            num_workers=0,
+            seeds=(1,),
+            val_split=0.5,
+            scheduler="cosine",
+            select_by=select_by,
+        )
+        samples = build_samples(tiny_dataset, cfg.frame, progress=False)
+        return cfg, train(cfg, samples, device=torch.device("cpu"))[0]
+
+    @pytest.mark.parametrize("select_by", ["iou", "loss"])
+    def test_both_modes_produce_a_checkpoint_and_a_manifest(
+        self, tiny_dataset, tmp_path, select_by
+    ):
+        cfg, result = self._run(tiny_dataset, tmp_path, select_by)
+        assert result.checkpoint.exists()
+
+        manifest = json.loads((cfg.output_dir / "run.json").read_text(encoding="utf-8"))
+        assert manifest["config"]["select_by"] == select_by
+        assert manifest["results"][0]["selected_by"] == select_by
+
+    def test_iou_selection_picks_the_best_iou_epoch(self, tiny_dataset, tmp_path):
+        _, result = self._run(tiny_dataset, tmp_path, "iou")
+        scores = result.history["val_mean_iou"]
+        assert result.best_epoch == scores.index(max(scores))
+        assert result.best_mean_iou == pytest.approx(max(scores))
+
+    def test_loss_selection_picks_the_best_loss_epoch(self, tiny_dataset, tmp_path):
+        _, result = self._run(tiny_dataset, tmp_path, "loss")
+        losses = result.history["val_loss"]
+        assert result.best_epoch == losses.index(min(losses))
+
+    def test_best_loss_is_recorded_whichever_mode_is_used(self, tiny_dataset, tmp_path):
+        """The plateau scheduler and the manifest both still want the loss."""
+        _, result = self._run(tiny_dataset, tmp_path, "iou")
+        assert result.best_val_loss == pytest.approx(min(result.history["val_loss"]))

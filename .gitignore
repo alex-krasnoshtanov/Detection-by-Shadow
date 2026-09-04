@@ -9,6 +9,9 @@ data/
 *.pth
 runs/
 outputs/
+# scripts/package_release.py builds a ~93 MB archive here; it belongs on a
+# release, not in the history.
+release/
 
 # --- Python -----------------------------------------------------------------
 __pycache__/

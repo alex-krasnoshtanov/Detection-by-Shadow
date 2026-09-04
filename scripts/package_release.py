@@ -48,6 +48,13 @@ def main() -> int:
     parser.add_argument("--tag", default="weights-v1", help="release tag for the printed command")
     args = parser.parse_args()
 
+    if not args.checkpoint.exists():
+        # A truncated copy-paste is the likely cause, so list what is actually
+        # there rather than letting torch.load raise a bare FileNotFoundError.
+        siblings = sorted(args.checkpoint.parent.glob("*.pt"))
+        hint = "\n  found alongside it: " + ", ".join(s.name for s in siblings) if siblings else ""
+        raise SystemExit(f"checkpoint not found: {args.checkpoint}{hint}")
+
     stats = args.target_stats or args.checkpoint.parent / STATS_FILE
     if not stats.exists():
         raise SystemExit(

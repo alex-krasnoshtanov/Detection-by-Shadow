@@ -43,6 +43,7 @@ epoch. See [Filling in the missing comparison](#filling-in-the-missing-compariso
 | v4 | Decomposed @ native 720x480 + 19 shadow features + TTA | side 1.000, dir 0.547 | 0.614 | [04](../notebooks/04_v4_full_resolution.ipynb) |
 | v5 | Decomposed @ 384x384, all 1692 samples, single seed | — | 0.604 / 0.618 / 0.620 | [05](../notebooks/05_v5_ensemble.ipynb) |
 | v5-ens | Three seeds averaged + TTA | — | **0.626** | [05](../notebooks/05_v5_ensemble.ipynb) |
+| repro | Decomposed @ 384x384, 40 epochs, 15% holdout | **0.6096 IoU** | not submitted | [below](#filling-in-the-missing-comparison) |
 
 Per-seed leaderboard scores for v5: seed 777 → 0.604, seed 42 → 0.618,
 seed 123 → 0.620. Ensembling the three → 0.626, i.e. **+0.006 over the best
@@ -242,31 +243,72 @@ shadow-detection predict \
 
 The single number the hackathon never produced: what the decomposed model
 scores on a held-out split, under the same metric that judged the direct
-regression at 0.4675. A three-epoch run on the restored dataset, on an
-RTX 5070, batch 64, 15% stratified holdout of 254 frames:
+regression at 0.4675. Run in 2026-09 on the restored dataset — one seed,
+40 epochs, batch 64 on an RTX 5070, 15% stratified holdout of 254 frames,
+11.5 minutes:
 
-| Epoch | Train loss | Val loss | **Val mean IoU** | Side acc | Dir acc |
+| Epoch | Train loss | Val loss | Val mean IoU | Side acc | Dir acc |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 2.4022 | 3.9609 | 0.4513 | 0.969 | 0.476 |
-| 2 | 1.7755 | 2.9800 | 0.4817 | 0.965 | 0.457 |
-| 3 | 1.6237 | 1.5186 | **0.5447** | 0.984 | 0.500 |
+| 3 | 1.6237 | 1.5186 | 0.5447 | 0.984 | 0.500 |
+| 14 | 1.3342 | 1.4368 | 0.5864 | 1.000 | 0.480 |
+| 19 | 1.2103 | 1.3552 | 0.5942 | 0.996 | 0.520 |
+| 28 | 0.9567 | 1.3279 | 0.5898 | 1.000 | 0.551 |
+| 38 | 0.8930 | **1.3104** | 0.6037 | 1.000 | 0.547 |
+| 40 | — | 1.3160 | **0.6126** | 1.000 | 0.520 |
 
-Against the two reference points:
+Against the two reference points, and with flip TTA applied as at inference:
 
 | | Mean IoU | Cost |
 | --- | --- | --- |
 | Per-edge mean box | 0.4295 | none |
 | v2, direct regression, fully tuned | 0.4675 | 120 epochs |
-| **Decomposed targets, 3 epochs** | **0.5447** | **78 seconds** |
+| Decomposed targets, 3 epochs | 0.5447 | 78 seconds |
+| **Decomposed targets, 40 epochs, + TTA** | **0.6096** | 11.5 minutes |
 
 The decomposed model clears the entire v2 effort — ResNet-50, GIoU, TTA,
-aspect-preserving input, freeze/unfreeze — inside three epochs and 78 seconds,
-and it is still improving steeply when the run stops. This is the evidence the
-original write-up was missing, and it says plainly that the reparameterisation
-did the work rather than any of the machinery bolted around it.
+aspect-preserving input, freeze/unfreeze — inside **three epochs**, and ends
+0.14 IoU above it. That is the evidence the original write-up was missing, and
+it says plainly that the reparameterisation did the work rather than any of the
+machinery bolted around it.
 
-Two caveats. It is one seed on one split, not a sweep. And direction sits at
-0.50 exactly as it always has.
+Three things fell out of the run:
+
+**Side classification is solved, exactly as claimed.** 254/254 on the held-out
+split, and 1.000 from epoch 14 onwards. Which edge someone is behind is
+trivially readable from their shadow.
+
+**TTA is worth about +0.006.** The in-training validation reports 0.6037 for
+the saved checkpoint without TTA; the same weights with horizontal-flip TTA
+score 0.6096 over the same 254 frames. Small, free, and consistent with a
+model that is already confident.
+
+**IoU was still climbing at epoch 40.** 0.6023, 0.6037, 0.6089, 0.6126 over
+the last four epochs, so the 40-epoch budget inherited from the hackathon is
+short. Nobody noticed at the time because nothing was measuring IoU.
+
+Caveats: one seed, one split, and the held-out frames come from the same
+synthetic distribution as training.
+
+## Selecting the checkpoint on the wrong quantity
+
+Worth its own note, because it was silently costing accuracy. The training loop
+saved the checkpoint with the lowest **validation loss**. That loss is
+`CE(side) + 5·SmoothL1(regression) + CE(direction)` — and the direction term
+never learns anything, so a third of the objective is noise with respect to the
+thing being scored.
+
+On the run above, the two disagree:
+
+| Selected by | Epoch | Held-out IoU |
+| --- | --- | --- |
+| validation loss | 38 | 0.6037 |
+| **validation IoU** | 40 | **0.6126** |
+
+Selecting on loss ships the worse model. `select_by` now defaults to `"iou"`
+whenever a validation split exists, and `run.json` records which was used.
+`"loss"` remains available for comparison.
+
 
 ### Batch size is the one setting you may have to change
 
@@ -299,53 +341,29 @@ notebooks did not save, and which cost real time.
 
 ## Checkpoints
 
-My own v5 weights are gone: they lived on the university GPU server and were
-not retrieved before access ended. The two surviving local checkpoints are from
-the superseded v1 and v2 architectures and would not reproduce anything
-documented here.
-
-A trained model does survive, though. Filipp published one from the same
-decomposed architecture as a TorchScript archive:
+The original v5 weights are gone: they lived on the university GPU server and
+were not retrieved before access ended. But the recipe is in this repository, so
+they were simply retrained:
 
 ```bash
-gh release download v1.0.0 --repo filipp-lotsmanov/shadow-detection
+gh release download weights-v1 --repo alex-krasnoshtanov/Detection-by-Shadow
 tar -xzf model_artifacts.tar.gz     # -> model.pt, target_stats.json
 ```
 
-Its `target_stats.json` matches the values logged in
-[notebook 04](../notebooks/04_v4_full_resolution.ipynb) to two decimal places
-(208.58/80.85/172.90/309.33 against 208.59/80.87/172.91/309.34), which is a
-useful independent check that both lineages standardised against the same data.
+`weights-v1` is seed 42 of a fresh three-seed all-data run (final training loss
+0.8069, 0.8079, 0.8077 across seeds 42/123/777 — 9.5 minutes each on an
+RTX 5070). One model rather than the ensemble, so the demo download and latency
+stay reasonable; the 0.626 leaderboard result averaged all three.
+
+Two independent consistency checks came out of this. The loader reproduces the
+`target_stats.json` of Filipp's separately trained release to three decimals
+(208.58/80.85/172.90/309.33), confirming both lineages standardised against the
+same data. And running *his* weights through *this* inference path scored 0.782
+on the eight frames he publishes with ground truth — a wrong feature ordering or
+an inverted TTA reversal would have collapsed that, since the weights expect the
+original conventions exactly.
 
 The v1 and v2 submission CSVs are in [`results/`](../results) as historical
 artifacts.
 
-## Cross-checking this rewrite against those weights
 
-The rewrite in [`src/shadow_detection/`](../src/shadow_detection) reimplements a
-feature extractor, a mirror map, a TTA scheme and a box reconstruction, any of
-which could have drifted from the notebooks during the port. Running the
-released weights through it is a direct check: a wrong feature ordering, a
-broken mirror map or an inverted TTA reversal would all show up as collapsed
-IoU, because the weights expect the original conventions exactly.
-
-Over the eight frames Filipp publishes with ground truth:
-
-| Metric | Value |
-| --- | --- |
-| Mean IoU | 0.782 |
-| Median IoU | 0.812 |
-| Range | 0.405 – 0.970 |
-| IoU > 0.5 | 7 / 8 |
-| Side classified correctly | 8 / 8, all at p = 1.000 |
-| Direction | abstained on all 8 |
-
-**This is not an evaluation.** All eight are training frames and the released
-model trained on every one of them, so the number is optimistic by construction
-and says nothing about generalisation. What it does establish is that this
-package's inference path agrees with the code that produced the weights.
-
-The rendered comparison is [`assets/predictions.png`](../assets/predictions.png).
-Note that direction abstained on all eight even for a model whose author reports
-65–70% direction accuracy at best — consistent with everything else here about
-that head.

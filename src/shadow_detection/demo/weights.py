@@ -38,10 +38,10 @@ ARCHIVE_NAME = "model_artifacts.tar.gz"
 MODEL_FILE = "model.pt"
 STATS_FILE = "target_stats.json"
 
-#: SHA-256 of the published archive. Set once the release exists; when None the
-#: digest is printed on download so it can be recorded here, and integrity is
-#: unverified until then.
-EXPECTED_SHA256: str | None = None
+#: SHA-256 of the published archive, so a corrupted or substituted download
+#: fails loudly instead of producing quietly wrong predictions. Regenerate with
+#: scripts/package_release.py, which prints the digest of what it built.
+EXPECTED_SHA256: str | None = "5532048df5086299d401ed4f02d35c659981983cf8edaf41ed6ee7af3f0d7b13"
 
 #: Refuse anything absurd rather than filling the disk on a bad URL.
 MAX_ARCHIVE_BYTES = 500 * 1024 * 1024

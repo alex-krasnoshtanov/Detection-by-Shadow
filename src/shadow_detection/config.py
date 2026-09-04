@@ -70,6 +70,13 @@ class TrainConfig:
     val_split: float = 0.0
     patience: int = 15
     scheduler: Literal["cosine", "plateau"] = "cosine"
+    #: What "best" means when a validation split exists. ``"iou"`` is the
+    #: default because the training loss is a weighted sum over five outputs,
+    #: one of which -- direction -- never learns anything, so the loss is a
+    #: noisy proxy for the quantity the challenge actually scored. Measured on
+    #: a real run: best loss landed at epoch 38 with IoU 0.6037, while best IoU
+    #: was 0.6126 at epoch 40. Selecting on loss ships the worse model.
+    select_by: Literal["iou", "loss"] = "iou"
     seeds: tuple[int, ...] = (42, 123, 777)
     frame: FrameSize = field(default_factory=FrameSize)
 

@@ -178,6 +178,10 @@ under-confident model rather than a bug. `tests/test_predict.py` reconstructs
 the averaging by hand and asserts that the naive version is measurably
 different.
 
+Measured worth: **+0.006 mean IoU** (0.6037 without, 0.6096 with, same weights
+over the same 254 held-out frames). Small, but it costs one extra forward pass
+and no training.
+
 Compare with the earlier direct-regression version, which had to map
 `xmin ← 1 - xmax_flipped` and got the index bookkeeping wrong twice before it
 was right.
@@ -207,10 +211,13 @@ carry. Validation direction accuracy across every run:
 | --- | --- |
 | v2 (direct regression) | 0.463 |
 | v4 (decomposed, full-res) | 0.547 |
+| 40-epoch reproduction | 0.606 |
 
-Against a 48.3% base rate, both are chance. The shadow tells you where someone
-is standing; it does not reliably tell you which way they are facing, at least
-not at 1692 samples.
+Against a 48.3% base rate, none of these is a usable signal. The best of them
+peaks at 0.606 and oscillates between 0.46 and 0.61 from epoch to epoch, which
+is the shape of noise rather than of learning. The shadow tells you where
+someone is standing; it does not reliably tell you which way they are facing,
+at least not at 1692 samples.
 
 The submission format accepts `-1` for "no prediction", so the right move is to
 decline. The models emit a direction only when the ensemble's softmax exceeds
@@ -219,6 +226,7 @@ decline. The models emit a direction only when the ensemble's softmax exceeds
 - v4 abstained on **all 414** test images — its confidence never once cleared
   the threshold.
 - v5's ensemble committed on 138 and abstained on 276.
+- The retrained ensemble in [`results/`](../results) abstains on 407 of 414.
 - The final blended submissions set `direction = -1` everywhere.
 
 Guessing on a coin-flip signal costs accuracy and buys nothing. Reporting
@@ -245,6 +253,12 @@ returns the first maximal index, so on a shadow with a flat column-density
 plateau the original picks its left end and the mirror picks its right end.
 Real shadows taper, so this is a corner case; `tests/test_features.py` pins the
 exact behaviour.
+
+**Checkpoint selection used to track the wrong quantity.** Fixed, and recorded
+here because it was costing real accuracy: the loop saved the lowest-validation-loss
+epoch, and that loss includes a direction cross-entropy that never learns. On a
+40-epoch run the best loss landed at epoch 38 (IoU 0.6037) while the best IoU
+was epoch 40 (0.6126). `select_by` now defaults to `"iou"`.
 
 **The feature block was never ablated.** `ShadowNet(num_features=0)` exists and
 is tested, but no run compared it against the full model. The claim that the 19

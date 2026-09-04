@@ -91,3 +91,18 @@ class TestPresets:
         has to run again -- otherwise the CLI could build an invalid config."""
         with pytest.raises(ValueError, match="needs a validation split"):
             replace(FULL_RES_PRESET, val_split=0.0)
+
+
+class TestSelectionMetric:
+    def test_defaults_to_iou(self):
+        """The training loss is a weighted sum over five outputs, one of which
+        never learns, so it is a noisy proxy for the metric being scored."""
+        for preset in PRESETS.values():
+            assert preset.select_by == "iou"
+
+    def test_loss_selection_is_still_available(self):
+        cfg = replace(FULL_RES_PRESET, select_by="loss")
+        assert cfg.select_by == "loss"
+
+    def test_selection_appears_in_the_manifest_dict(self):
+        assert FULL_RES_PRESET.to_dict()["select_by"] == "iou"
